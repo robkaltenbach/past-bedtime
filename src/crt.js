@@ -129,7 +129,7 @@ export function makeScreenMesh(frameTex) {
   // glossy front glass: reflections only, added on top
   const glassMat = new THREE.MeshPhysicalMaterial({
     color: 0x000000, roughness: 0.07, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.05,
-    transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, envMapIntensity: 0.12,
+    transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, envMapIntensity: 0.5,
   });
   const glass = new THREE.Mesh(geo, glassMat);
   glass.position.copy(m.position); glass.position.z += 0.0008;

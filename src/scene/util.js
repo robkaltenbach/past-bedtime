@@ -21,7 +21,9 @@ export function pbr(name, { size = 1, color = 0xffffff, rough = 1, normalScale =
   const base = `${import.meta.env.BASE_URL}assets/tex/${name}/`;
   const prep = (t) => { const c = t.clone(); c.repeat.set(1 / size, 1 / size); c.needsUpdate = true; return c; };
   const arm = prep(tex(base + 'arm.jpg', false));
-  const m = new THREE.MeshStandardMaterial({
+  const physical = 'sheen' in rest || 'clearcoat' in rest;
+  const M = physical ? THREE.MeshPhysicalMaterial : THREE.MeshStandardMaterial;
+  const m = new M({
     map: prep(tex(base + diff + '.jpg', true)),
     normalMap: prep(tex(base + 'nor.jpg', false)),
     normalScale: new THREE.Vector2(normalScale, normalScale),

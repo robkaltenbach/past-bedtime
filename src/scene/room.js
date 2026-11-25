@@ -16,9 +16,8 @@ export function buildRoom() {
   const { W, D, H } = ROOM, hx = W / 2, hz = D / 2, T = 0.12;
 
   // knotty-pine style paneling: planked wood texture run vertically
-  const wallMat = pbr('wood_floor_worn', { size: 1.5, color: 0x9a7052, normalScale: 1.1, ao: 0.9 });
-  wallMat.roughness = 0.62;
-  const floorMat = pbr('curly_teddy_natural', { size: 0.4, color: 0x6e5644, normalScale: 1.3 });
+  const wallMat = pbr('wood_floor_worn', { size: 1.5, color: 0x8f6a4e, normalScale: 0.9, ao: 0.9, clearcoat: 0.55, clearcoatRoughness: 0.32 });
+  const floorMat = pbr('curly_teddy_natural', { size: 0.35, color: 0x6a5242, normalScale: 1.6, sheen: 1, sheenRoughness: 0.75, sheenColor: new THREE.Color(0x8a7060) });
   const ceilMat = pbr('ceiling_interior', { size: 0.9, color: 0xe9e5dc, normalScale: 1.4 });
   const trimMat = new THREE.MeshStandardMaterial({ color: 0x4a2f1e, roughness: 0.45 });
 
@@ -141,7 +140,7 @@ function comforterGeo(w, l, drop, { headGap = 0.5, seed = 1, thick = 0.035 } = {
   // a plane draped over a mattress whose top is at y=0, centred at x=0, foot at z=+l/2
   const cov = l - headGap;
   const W = w + 2 * drop, L = cov + drop;
-  const sx = 90, sz = 120;
+  const sx = 140, sz = 180;
   const geo = new THREE.PlaneGeometry(W, L, sx, sz); geo.rotateX(-Math.PI / 2);
   const p = geo.attributes.position, r = 0.05;
   const zStart = -l / 2 + headGap;
@@ -165,9 +164,13 @@ function comforterGeo(w, l, drop, { headGap = 0.5, seed = 1, thick = 0.035 } = {
     const hang = Math.max(dy1, dy2);
     const n = fbm(u * 3.1 + seed, v * 2.2, seed * 3.7, 4);
     const n2 = fbm(u * 9 + 3, v * 7, seed, 3);
-    y += n * 0.018 + n2 * 0.004 + (hang > 0 ? 0 : 0.012 * (1 - (u / (w / 2)) ** 2));
+    y += n * 0.028 + n2 * 0.006 + (hang > 0 ? 0 : 0.018 * (1 - (u / (w / 2)) ** 2));
+    // quilted channels: puffy cells between stitch lines every ~24cm
+    const qa = Math.abs(Math.sin((u / 0.24) * Math.PI)), qb = Math.abs(Math.sin((v / 0.24) * Math.PI));
+    const quilt = Math.pow(qa * qb, 0.35);
+    y += (hang > 0 ? 0.35 : 1) * quilt * 0.016 - 0.008;
     // hanging folds swing in and out
-    const fold = Math.sin((sxv > 0 ? v : u) * 22 + n * 4) * 0.012 * Math.min(1, hang / 0.15);
+    const fold = (Math.sin((sxv > 0 ? v : u) * 13 + n * 5) * 0.02 + Math.sin((sxv > 0 ? v : u) * 31 + n2 * 3) * 0.006) * Math.min(1, hang / 0.12);
     if (sxv > 0) x += Math.sign(u) * fold; else if (sfoot > 0) z += fold;
     // hem doesn't drop below the deck
     p.setXYZ(i, x, Math.max(y, -drop * 0.95), z);
@@ -195,14 +198,14 @@ function pillowGeo(w, h, d, seed) {
 
 export function buildBunkBed() {
   const g = new THREE.Group();
-  const wood = pbr('oak_veneer_01', { size: 0.9, color: 0xd6b48a, rough: 0.9, normalScale: 0.5 });
-  wood.roughness = 0.75;
-  const sheet = pbr('rough_linen', { size: 0.35, color: 0xe8ecf2, normalScale: 0.8 });
-  const sheetBlue = pbr('rough_linen', { size: 0.35, color: 0xbfd0e4, normalScale: 0.8 });
-  const plaidRed = pbr('fabric_pattern_07', { size: 0.42, normalScale: 1, diff: 'diff' });
-  const plaidBlue = pbr('fabric_pattern_07', { size: 0.42, normalScale: 1, diff: 'diff2' });
+  const wood = pbr('oak_veneer_01', { size: 0.9, color: 0xc9a47a, rough: 0.9, normalScale: 0.5, clearcoat: 0.7, clearcoatRoughness: 0.28 });
+  const fab = { sheen: 1, sheenRoughness: 0.55, sheenColor: new THREE.Color(0xffffff) };
+  const sheet = pbr('rough_linen', { size: 0.3, color: 0xe2e4e8, normalScale: 1, ...fab });
+  const sheetBlue = pbr('rough_linen', { size: 0.3, color: 0xb4c6dc, normalScale: 1, ...fab });
+  const plaidRed = pbr('fabric_pattern_07', { size: 0.42, normalScale: 1.4, diff: 'diff', ...fab, sheenColor: new THREE.Color(0xffd0c8) });
+  const plaidBlue = pbr('fabric_pattern_07', { size: 0.42, normalScale: 1.4, diff: 'diff2', ...fab, sheenColor: new THREE.Color(0xd0e0ff) });
   plaidRed.side = plaidBlue.side = THREE.DoubleSide;
-  const fleece = pbr('knitted_fleece', { size: 0.3, color: 0x6f7b62 });
+  const fleece = pbr('knitted_fleece', { size: 0.25, color: 0x6f7b62, sheen: 1, sheenRoughness: 0.4, sheenColor: new THREE.Color(0xc8d8b0) });
 
   const W = 1.06, L = 2.06, P = 0.072, Hp = 1.78;
   const x0 = -W / 2, x1 = W / 2, z0 = -L / 2, z1 = L / 2;
@@ -369,10 +372,17 @@ export function buildLamp() {
   g.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
   bulb.castShadow = false; lining.castShadow = false;
   // lights: shadowed bulb (shade makes the pools) + a soft unshadowed glow for light through the fabric
-  const key = new THREE.PointLight(0xff9a40, 0.7, 0, 2); key.position.y = 0.53; key.castShadow = true;
-  key.shadow.mapSize.set(512, 512); key.shadow.camera.near = 0.02; key.shadow.camera.far = 6; key.shadow.radius = 4; key.shadow.blurSamples = 8; key.shadow.bias = -0.002;
-  const glow = new THREE.PointLight(0xff8a35, 0.1, 0, 2); glow.position.y = 0.56;
-  g.add(key, glow);
-  g.userData = { key, glow };
+  // the shade's open top and bottom throw two cones (the classic lamp pools); a dim point light is the glow through the fabric
+  const mk = (dir, angle, I) => {
+    const l = new THREE.SpotLight(0xff9a42, I, 0, angle, 0.45, 2); l.position.y = 0.53;
+    l.target.position.set(0, 0.53 + dir, 0); g.add(l, l.target);
+    l.castShadow = true; l.shadow.mapSize.set(1024, 1024); l.shadow.camera.near = 0.03; l.shadow.camera.far = 5;
+    l.shadow.radius = 5; l.shadow.blurSamples = 10; l.shadow.bias = -0.0006; l.shadow.normalBias = 0.01;
+    return l;
+  };
+  const up = mk(1, 0.92, 1.4), down = mk(-1, 1.1, 1.1);
+  const glow = new THREE.PointLight(0xff8a35, 0.16, 0, 2); glow.position.y = 0.56;
+  g.add(glow);
+  g.userData = { up, down, glow };
   return g;
 }

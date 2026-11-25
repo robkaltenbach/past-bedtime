@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUniformsLib.js';
-import { EffectComposer, RenderPass, EffectPass, BloomEffect, ToneMappingEffect, ToneMappingMode, VignetteEffect, NoiseEffect, BlendFunction, SMAAEffect } from 'postprocessing';
+import { EffectComposer, RenderPass, EffectPass, BloomEffect, ToneMappingEffect, ToneMappingMode, VignetteEffect, NoiseEffect, BlendFunction, SMAAEffect, DepthOfFieldEffect, ChromaticAberrationEffect } from 'postprocessing';
 import { N8AOPostPass } from 'n8ao';
 import { buildRoom, buildBunkBed, buildConsole, buildPoster, buildGlowStars, buildLamp, cord, ROOM, WIN } from './scene/room.js';
 import { shadowAll, setAniso } from './scene/util.js';
@@ -88,7 +88,7 @@ async function loadModels() {
 
 const lamp = buildLamp(); lamp.position.set(-0.5, STAND_TOP, -1.46); scene.add(lamp);
 // static lights: render their shadow maps once
-for (const l of [lamp.userData.key]) { l.shadow.autoUpdate = false; l.shadow.needsUpdate = true; }
+for (const l of [lamp.userData.up, lamp.userData.down]) { l.shadow.autoUpdate = false; l.shadow.needsUpdate = true; }
 
 // ---------------------------------------------------------------- lights
 // TV world-space emitter frame
@@ -111,7 +111,7 @@ tvSpot.position.copy(scrWorld).addScaledVector(scrFwd, 0.01);
 tvSpot.target.position.copy(scrWorld).addScaledVector(scrFwd, 2);
 tvSpot.map = light.cookie;
 tvSpot.castShadow = true;
-tvSpot.shadow.mapSize.set(1024, 1024);
+tvSpot.shadow.mapSize.set(2048, 2048);
 tvSpot.shadow.camera.near = 0.04; tvSpot.shadow.camera.far = 7;
 tvSpot.shadow.radius = 9; tvSpot.shadow.blurSamples = 16;
 tvSpot.shadow.bias = -0.0004; tvSpot.shadow.normalBias = 0.015;
@@ -140,14 +140,17 @@ scene.add(led);
 const composer = new EffectComposer(renderer, { frameBufferType: THREE.HalfFloatType });
 composer.addPass(new RenderPass(scene, camera));
 const ao = new N8AOPostPass(scene, camera, innerWidth, innerHeight);
-Object.assign(ao.configuration, { aoRadius: 0.5, distanceFalloff: 0.35, intensity: 1.4, halfRes: true, depthAwareUpsampling: true, gammaCorrection: false, aoSamples: 12, denoiseSamples: 6, denoiseRadius: 10 });
+Object.assign(ao.configuration, { aoRadius: 0.32, distanceFalloff: 0.6, intensity: 2.6, halfRes: true, depthAwareUpsampling: true, gammaCorrection: false, aoSamples: 12, denoiseSamples: 6, denoiseRadius: 10 });
 if (!params.has('noao')) composer.addPass(ao);
 const bloom = new BloomEffect({ mipmapBlur: true, intensity: 0.75, luminanceThreshold: 0.75, luminanceSmoothing: 0.35, radius: 0.72 });
 const tone = new ToneMappingEffect({ mode: ToneMappingMode.AGX });
 const vignette = new VignetteEffect({ offset: 0.35, darkness: 0.38 });
 const grain = new NoiseEffect({ premultiply: true, blendFunction: BlendFunction.ADD });
 grain.blendMode.opacity.value = 0.16;
-composer.addPass(new EffectPass(camera, bloom));
+const dof = new DepthOfFieldEffect(camera, { worldFocusDistance: 2.25, worldFocusRange: 1.6, bokehScale: 2.2, resolutionScale: 0.5 });
+const ca = new ChromaticAberrationEffect({ offset: new THREE.Vector2(0.0006, 0.0004), radialModulation: true, modulationOffset: 0.35 });
+if (!params.has('nodof')) composer.addPass(new EffectPass(camera, dof));
+composer.addPass(new EffectPass(camera, bloom, ca));
 composer.addPass(new EffectPass(camera, tone, vignette));
 composer.addPass(new EffectPass(camera, new SMAAEffect(), grain));
 renderer.toneMappingExposure = 2.7;
@@ -302,14 +305,14 @@ const baseYaw = Math.atan2(baseDir.x, -baseDir.z), basePitch = Math.asin(baseDir
 if (params.has('cam')) { const [yx, yy] = params.get('cam').split(',').map(Number); look.tx = look.x = yx; look.ty = look.y = yy; }
 
 // ---------------------------------------------------------------- frame loop
-const ENV_I = params.has('env') ? +params.get('env') : 0.32;
+const ENV_I = params.has('env') ? +params.get('env') : 0.6;
 function applyLights(lum, pw) {
   const L = lum;
   tvArea.color.copy(light.avg);
   tvArea.intensity = 70 * L;
   tvSpot.intensity = 30 * (light.peak || L);
   bounce.color.copy(light.avg); bounce.groundColor.copy(light.avg).multiplyScalar(0.6);
-  bounce.intensity = 0.35 * L;
+  bounce.intensity = 1.3 * L;
   scene.environmentIntensity = ENV_I;
   moon.intensity = 0.8; night.intensity = 0.015;
 }
@@ -375,7 +378,7 @@ function tick(now) {
 
 loadModels().then(() => {
   captureEnvironment();
-  lamp.userData.key.shadow.needsUpdate = true; moon.shadow.needsUpdate = true;
+  lamp.userData.up.shadow.needsUpdate = true; lamp.userData.down.shadow.needsUpdate = true; moon.shadow.needsUpdate = true;
   document.getElementById('loading').classList.add('gone');
   ui.start.disabled = false;
   if (TEST) {
