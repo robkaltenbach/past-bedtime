@@ -152,9 +152,9 @@ grain.blendMode.opacity.value = 0.08;
 const dof = new DepthOfFieldEffect(camera, { worldFocusDistance: 2.25, worldFocusRange: 1.6, bokehScale: 2.2, resolutionScale: 0.5 });
 const ca = new ChromaticAberrationEffect({ offset: new THREE.Vector2(0.0006, 0.0004), radialModulation: true, modulationOffset: 0.35 });
 if (params.has('dof')) composer.addPass(new EffectPass(camera, dof));
-composer.addPass(new EffectPass(camera, bloom));
-composer.addPass(new EffectPass(camera, tone, vignette));
-composer.addPass(new EffectPass(camera, new SMAAEffect(), grain));
+// one fullscreen pass for the grade, one for AA (each pass at 4K-ish costs real time)
+composer.addPass(new EffectPass(camera, bloom, tone, vignette, grain));
+composer.addPass(new EffectPass(camera, new SMAAEffect()));
 renderer.toneMappingExposure = params.has('exp') ? +params.get('exp') : 2.4;
 
 // ---------------------------------------------------------------- environment (captured once, scaled live)
@@ -354,7 +354,10 @@ function resize() {
 }
 addEventListener('resize', resize);
 
+// the picture only changes at 60 Hz, so render at a steady 60 instead of chasing 120 Hz displays (avoids vsync judder)
+const FRAME_MIN = params.has('uncapped') ? 0 : 1000 / 62;
 function tick(now) {
+  if (now - last < FRAME_MIN) { requestAnimationFrame(tick); return; }
   const dt = Math.min(0.1, (now - last) / 1000); last = now; t += dt;
 
   // emulator pacing (NTSC 60.0988 fps)
