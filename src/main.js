@@ -318,7 +318,7 @@ if (params.has('cam')) { const [yx, yy] = params.get('cam').split(',').map(Numbe
 // ---------------------------------------------------------------- frame loop
 const ENV_I = params.has('env') ? +params.get('env') : 0.2;
 const tmpL = new THREE.Color(), tmpR = new THREE.Color();
-const LAMP_GAIN = params.has('hall') ? +params.get('hall') : 1.5, TV_GAIN = params.has('tvg') ? +params.get('tvg') : 3.0;
+const LAMP_GAIN = params.has('hall') ? +params.get('hall') : 0.6, TV_GAIN = params.has('tvg') ? +params.get('tvg') : 4.0;
 function applyLights(lum, pw) {
   const L = lum;
   if (baked) {

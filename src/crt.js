@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 
 // Curved CRT face. Lives in the TV model's local space (metres, unscaled model units).
-export const SCREEN = { cx: -0.0025, cy: 0.2575, w: 0.316, h: 0.236, zc: 0.1236, sag: 0.0075 };
+export const SCREEN = { cx: -0.0015, cy: 0.2575, w: 0.322, h: 0.24, zc: 0.1236, sag: 0.0075 };
 
 const vert = /* glsl */`
 varying vec2 vUv;
