@@ -355,7 +355,7 @@ function resize() {
 addEventListener('resize', resize);
 
 // the picture only changes at 60 Hz, so render at a steady 60 instead of chasing 120 Hz displays (avoids vsync judder)
-const FRAME_MIN = params.has('uncapped') ? 0 : 1000 / 62;
+const FRAME_MIN = params.has('uncapped') ? 0 : 13.5; // > one 120 Hz interval, < one 60 Hz interval
 function tick(now) {
   if (now - last < FRAME_MIN) { requestAnimationFrame(tick); return; }
   const dt = Math.min(0.1, (now - last) / 1000); last = now; t += dt;
