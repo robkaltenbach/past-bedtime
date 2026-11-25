@@ -72,7 +72,7 @@ async function loadModels() {
   const [tv, stand, shelves, books, clock, pad, crate, ball, pillows, dart] = await Promise.all(
     ['television_02', 'modern_wooden_cabinet', 'wooden_display_shelves_01', 'book_encyclopedia_set_01', 'alarm_clock_01', 'gamepad', 'plastic_crate_01', 'baseball_01', 'throw_pillows_01', 'dartboard'].map(loadModel));
   tvGroup.add(shadowAll(tv));
-  stand.scale.set(...STAND_S); stand.position.set(0.02, 0, -ROOM.D / 2 + 0.342 * STAND_S[2] + 0.012); scene.add(shadowAll(stand));
+  stand.scale.set(...STAND_S); stand.traverse((o) => { if (o.isMesh) { o.material = o.material.clone(); o.material.color.set(0x8c7a68); } }); stand.position.set(0.02, 0, -ROOM.D / 2 + 0.342 * STAND_S[2] + 0.012); scene.add(shadowAll(stand));
   shelves.scale.setScalar(0.9); shelves.traverse((o) => { if (o.isMesh) { o.material = o.material.clone(); o.material.color.set(0x6a4a34); } }); shelves.rotation.y = Math.PI / 2; shelves.position.set(1.29, 0, -ROOM.D / 2 + 0.186 * 0.9 + 0.01); scene.add(shadowAll(shelves));
   books.scale.setScalar(0.85); books.position.set(1.0, 0.57, -1.56); scene.add(shadowAll(books));
   clock.position.set(1.42, 1.4, -1.5); clock.rotation.y = -Math.PI / 2 + 0.5; scene.add(shadowAll(clock));
@@ -153,7 +153,7 @@ if (!params.has('nodof')) composer.addPass(new EffectPass(camera, dof));
 composer.addPass(new EffectPass(camera, bloom, ca));
 composer.addPass(new EffectPass(camera, tone, vignette));
 composer.addPass(new EffectPass(camera, new SMAAEffect(), grain));
-renderer.toneMappingExposure = 2.7;
+renderer.toneMappingExposure = 2.4;
 
 // ---------------------------------------------------------------- environment (captured once, scaled live)
 function captureEnvironment() {
@@ -305,14 +305,14 @@ const baseYaw = Math.atan2(baseDir.x, -baseDir.z), basePitch = Math.asin(baseDir
 if (params.has('cam')) { const [yx, yy] = params.get('cam').split(',').map(Number); look.tx = look.x = yx; look.ty = look.y = yy; }
 
 // ---------------------------------------------------------------- frame loop
-const ENV_I = params.has('env') ? +params.get('env') : 0.6;
+const ENV_I = params.has('env') ? +params.get('env') : 0.2;
 function applyLights(lum, pw) {
   const L = lum;
   tvArea.color.copy(light.avg);
-  tvArea.intensity = 70 * L;
-  tvSpot.intensity = 30 * (light.peak || L);
+  tvArea.intensity = 120 * L;
+  tvSpot.intensity = 48 * (light.peak || L);
   bounce.color.copy(light.avg); bounce.groundColor.copy(light.avg).multiplyScalar(0.6);
-  bounce.intensity = 1.3 * L;
+  bounce.intensity = 0.55 * L;
   scene.environmentIntensity = ENV_I;
   moon.intensity = 0.8; night.intensity = 0.015;
 }

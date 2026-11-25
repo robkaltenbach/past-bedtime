@@ -16,7 +16,7 @@ export function buildRoom() {
   const { W, D, H } = ROOM, hx = W / 2, hz = D / 2, T = 0.12;
 
   // knotty-pine style paneling: planked wood texture run vertically
-  const wallMat = pbr('wood_floor_worn', { size: 1.5, color: 0x8f6a4e, normalScale: 0.9, ao: 0.9, clearcoat: 0.55, clearcoatRoughness: 0.32 });
+  const wallMat = pbr('wood_floor_worn', { size: 1.5, color: 0x7a6250, normalScale: 0.9, ao: 0.9, clearcoat: 0.55, clearcoatRoughness: 0.32 });
   const floorMat = pbr('curly_teddy_natural', { size: 0.35, color: 0x6a5242, normalScale: 1.6, sheen: 1, sheenRoughness: 0.75, sheenColor: new THREE.Color(0x8a7060) });
   const ceilMat = pbr('ceiling_interior', { size: 0.9, color: 0xe9e5dc, normalScale: 1.4 });
   const trimMat = new THREE.MeshStandardMaterial({ color: 0x4a2f1e, roughness: 0.45 });
@@ -361,9 +361,13 @@ export function buildLamp() {
     c.fillStyle = '#e7d2a8'; c.fillRect(0, 0, w, h);
     for (let i = 0; i < 3000; i++) { c.fillStyle = `rgba(${120 + Math.random() * 60},${90 + Math.random() * 40},50,0.06)`; c.fillRect(Math.random() * w, Math.random() * h, 1 + Math.random() * 2, 1); }
     for (let y = 0; y < h; y += 2) { c.fillStyle = 'rgba(0,0,0,0.035)'; c.fillRect(0, y, w, 1); }
+    // light through the fabric is strongest at the bulb's height and fades toward the rims (uv v=1 is the top)
+    const gr = c.createLinearGradient(0, 0, 0, h);
+    gr.addColorStop(0, 'rgba(0,0,0,0.55)'); gr.addColorStop(0.45, 'rgba(0,0,0,0.05)'); gr.addColorStop(0.75, 'rgba(0,0,0,0.0)'); gr.addColorStop(1, 'rgba(0,0,0,0.35)');
+    c.fillStyle = gr; c.fillRect(0, 0, w, h);
   });
   const shadeGeo = new THREE.CylinderGeometry(0.115, 0.19, 0.22, 48, 1, true);
-  const shade = new THREE.Mesh(shadeGeo, new THREE.MeshStandardMaterial({ map: shadeTex, color: 0x6a5846, roughness: 0.9, emissive: 0xff7a22, emissiveMap: shadeTex, emissiveIntensity: 0.6, side: THREE.FrontSide }));
+  const shade = new THREE.Mesh(shadeGeo, new THREE.MeshStandardMaterial({ map: shadeTex, color: 0x4a3a2c, roughness: 0.9, emissive: 0xff8a2a, emissiveMap: shadeTex, emissiveIntensity: 1.25, side: THREE.FrontSide }));
   shade.position.y = 0.56; g.add(shade);
   const lining = new THREE.Mesh(shadeGeo, new THREE.MeshStandardMaterial({ color: 0xfff0d8, emissive: 0xffa050, emissiveIntensity: 2.2, roughness: 1, side: THREE.BackSide }));
   lining.position.y = 0.56; lining.scale.setScalar(0.995); g.add(lining);
@@ -380,8 +384,8 @@ export function buildLamp() {
     l.shadow.radius = 5; l.shadow.blurSamples = 10; l.shadow.bias = -0.0006; l.shadow.normalBias = 0.01;
     return l;
   };
-  const up = mk(1, 0.92, 1.4), down = mk(-1, 1.1, 1.1);
-  const glow = new THREE.PointLight(0xff8a35, 0.16, 0, 2); glow.position.y = 0.56;
+  const up = mk(1, 0.92, 4.2), down = mk(-1, 1.1, 3.2);
+  const glow = new THREE.PointLight(0xff8a35, 0.3, 0, 2); glow.position.y = 0.56;
   g.add(glow);
   g.userData = { up, down, glow };
   return g;

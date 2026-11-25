@@ -18,7 +18,7 @@ void main(){
 const frag = /* glsl */`
 precision highp float;
 uniform sampler2D tFrame;
-uniform float uTime, uPower, uSignal, uBright, uMask;
+uniform float uTime, uPower, uSignal, uBright, uMask, uRoom;
 varying vec2 vUv;
 varying vec3 vN;
 varying vec3 vView;
@@ -101,9 +101,19 @@ void main(){
   col += vec3(flash*3.0);
 
   // glass black level: phosphor-grey with a touch of green
-  vec3 black = vec3(0.0035, 0.0045, 0.0042);
+  vec3 black = vec3(0.0011, 0.0013, 0.0013);
   col = black + col * uBright * step(0.001, uPower);
-  gl_FragColor = vec4(col * edge, 1.0);
+  col *= edge;
+  // the tube glass: fresnel sheen + a broad soft reflection of the lamp-lit room, strongest off-axis
+  vec3 N = normalize(vN), V = normalize(vView);
+  float fres = pow(1.0 - clamp(dot(N, V), 0.0, 1.0), 4.0);
+  vec2 hp = p - vec2(-0.28, 0.26);
+  float sheen = exp(-dot(hp, hp) * 9.0);
+  vec3 room = vec3(0.020, 0.011, 0.006) * uRoom;
+  col += room * (0.35 + 6.0 * fres + 1.4 * sheen);
+  // a little dust/haze on the glass lifts the darkest blacks unevenly
+  col += room * 0.25 * hash(floor(vUv * 380.0));
+  gl_FragColor = vec4(col, 1.0);
 }`;
 
 export function makeScreenMesh(frameTex) {
@@ -119,7 +129,7 @@ export function makeScreenMesh(frameTex) {
     vertexShader: vert, fragmentShader: frag,
     uniforms: {
       tFrame: { value: frameTex }, uTime: { value: 0 }, uPower: { value: 0 }, uSignal: { value: 0 },
-      uBright: { value: 1.45 }, uMask: { value: 1 },
+      uBright: { value: 1.45 }, uMask: { value: 1 }, uRoom: { value: 1 },
     },
     toneMapped: true,
   });
