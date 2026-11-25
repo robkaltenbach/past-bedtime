@@ -119,7 +119,7 @@ export function makeScreenMesh(frameTex) {
     vertexShader: vert, fragmentShader: frag,
     uniforms: {
       tFrame: { value: frameTex }, uTime: { value: 0 }, uPower: { value: 0 }, uSignal: { value: 0 },
-      uBright: { value: 2.2 }, uMask: { value: 1 },
+      uBright: { value: 1.45 }, uMask: { value: 1 },
     },
     toneMapped: true,
   });

@@ -87,6 +87,8 @@ async function loadModels() {
 }
 
 const lamp = buildLamp(); lamp.position.set(-0.5, STAND_TOP, -1.46); scene.add(lamp);
+// static lights: render their shadow maps once
+for (const l of [lamp.userData.key]) { l.shadow.autoUpdate = false; l.shadow.needsUpdate = true; }
 
 // ---------------------------------------------------------------- lights
 // TV world-space emitter frame
@@ -126,6 +128,7 @@ moon.target.position.set(-0.2, 0.2, -0.55);
 moon.castShadow = true; moon.shadow.mapSize.set(2048, 2048);
 moon.shadow.camera.near = 2.5; moon.shadow.camera.far = 9; moon.shadow.radius = 2.5; moon.shadow.blurSamples = 8; moon.shadow.bias = -0.0002;
 scene.add(moon, moon.target);
+moon.shadow.autoUpdate = false; moon.shadow.needsUpdate = true;
 const night = new THREE.AmbientLight(0x8a8478, 0.0);
 scene.add(night);
 
@@ -372,6 +375,7 @@ function tick(now) {
 
 loadModels().then(() => {
   captureEnvironment();
+  lamp.userData.key.shadow.needsUpdate = true; moon.shadow.needsUpdate = true;
   document.getElementById('loading').classList.add('gone');
   ui.start.disabled = false;
   if (TEST) {
