@@ -2,6 +2,7 @@
 import { NES } from './nes/nes.js';
 
 let nes = null, audioPort = null, sampleRate = 48000, loaded = false;
+const pool = []; // framebuffers handed back by the main thread (avoids 15 MB/s of garbage)
 
 self.onmessage = (e) => {
   const m = e.data;
@@ -30,12 +31,16 @@ self.onmessage = (e) => {
       nes.pads[0].buttons = m.buttons & 0xff;
       const n = Math.min(m.frames, 4);
       for (let i = 0; i < n; i++) nes.frame();
-      const fb = nes.screen.slice();
+      const fb = pool.pop() || new Uint32Array(256 * 240);
+      fb.set(nes.screen);
       self.postMessage({ type: 'frame', fb }, [fb.buffer]);
       const s = nes.apu.takeSamples();
       if (audioPort && s.length) audioPort.postMessage(s, [s.buffer]);
       break;
     }
+    case 'recycle':
+      if (pool.length < 4) pool.push(m.fb);
+      break;
     case 'sram':
       if (loaded && nes.rom.battery) self.postMessage({ type: 'sram', data: nes.mapper.sram.slice() });
       break;
