@@ -8,10 +8,13 @@ import { shadowAll, setAniso } from './scene/util.js';
 import { makeScreenMesh, ScreenLight, SCREEN } from './crt.js';
 import { initInput, readButtons } from './input.js';
 import { RomStore } from './store.js';
+import { exportScene, applyBake, LM } from './bake.js';
 
 const BASE = import.meta.env.BASE_URL;
 const params = new URLSearchParams(location.search);
 const TEST = params.has('test');
+const EXPORT = params.has('export');
+let baked = null;
 const VIEW = params.has('view') ? params.get('view').split(',').map(Number) : null;
 
 // ---------------------------------------------------------------- renderer
@@ -140,7 +143,7 @@ scene.add(led);
 const composer = new EffectComposer(renderer, { frameBufferType: THREE.HalfFloatType });
 composer.addPass(new RenderPass(scene, camera));
 const ao = new N8AOPostPass(scene, camera, innerWidth, innerHeight);
-Object.assign(ao.configuration, { aoRadius: 0.32, distanceFalloff: 0.6, intensity: 2.6, halfRes: true, depthAwareUpsampling: true, gammaCorrection: false, aoSamples: 12, denoiseSamples: 6, denoiseRadius: 10 });
+Object.assign(ao.configuration, { aoRadius: 0.22, distanceFalloff: 0.6, intensity: 1.6, halfRes: true, depthAwareUpsampling: true, gammaCorrection: false, aoSamples: 12, denoiseSamples: 6, denoiseRadius: 10 });
 if (!params.has('noao')) composer.addPass(ao);
 const bloom = new BloomEffect({ mipmapBlur: true, intensity: 0.75, luminanceThreshold: 0.75, luminanceSmoothing: 0.35, radius: 0.72 });
 const tone = new ToneMappingEffect({ mode: ToneMappingMode.AGX });
@@ -265,7 +268,8 @@ async function start() {
     const r = await fetch(`${BASE}roms/nes15.nes`);
     insertCartridge('nes15 (demo cart)', await r.arrayBuffer(), { remember: false });
   }
-  setTimeout(() => ui.help.classList.add('fade'), 9000);
+  setTimeout(() => ui.help.classList.add('fade'), 12000);
+  document.activeElement?.blur?.();
 }
 ui.start.addEventListener('click', start);
 document.getElementById('load').addEventListener('click', (e) => { e.stopPropagation(); ui.file.click(); });
@@ -284,6 +288,11 @@ addEventListener('drop', async (e) => {
   insertCartridge(f.name, await f.arrayBuffer());
 });
 
+let toastT = 0;
+function toast(msg) { const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 2600); }
+addEventListener('gamepadconnected', (e) => toast('Controller connected: ' + e.gamepad.id.replace(/\(.*\)/, '').trim()));
+canvas.tabIndex = 0; canvas.addEventListener('pointerdown', () => { canvas.focus(); document.activeElement !== canvas && canvas.focus(); });
+addEventListener('keydown', (e) => { if (e.code === 'KeyH' && !e.repeat) { ui.help.classList.remove('fade'); ui.help.classList.toggle('hidden'); } });
 initInput({
   onReset: () => { if (romLoaded) { worker.postMessage({ type: 'reset' }); power = 0.02; } },
   onFullscreen: () => { if (!document.fullscreenElement) document.documentElement.requestFullscreen?.(); else document.exitFullscreen?.(); },
@@ -296,9 +305,12 @@ addEventListener('beforeunload', () => { if (romLoaded) worker.postMessage({ typ
 // ---------------------------------------------------------------- gentle look
 const look = { x: 0, y: 0, tx: 0, ty: 0 };
 addEventListener('pointermove', (e) => {
-  look.tx = (e.clientX / innerWidth) * 2 - 1;
-  look.ty = (e.clientY / innerHeight) * 2 - 1;
+  // soft response curve: small moves near the centre barely turn the head
+  const f = (v) => Math.sign(v) * Math.pow(Math.abs(v), 1.35);
+  look.tx = f((e.clientX / innerWidth) * 2 - 1);
+  look.ty = f((e.clientY / innerHeight) * 2 - 1);
 });
+document.addEventListener('mouseleave', () => { look.tx = 0; look.ty = 0; });
 const baseTarget = new THREE.Vector3(0.08, 0.7, -1.3);
 const baseDir = baseTarget.clone().sub(EYE).normalize();
 const baseYaw = Math.atan2(baseDir.x, -baseDir.z), basePitch = Math.asin(baseDir.y);
@@ -306,8 +318,21 @@ if (params.has('cam')) { const [yx, yy] = params.get('cam').split(',').map(Numbe
 
 // ---------------------------------------------------------------- frame loop
 const ENV_I = params.has('env') ? +params.get('env') : 0.2;
+const tmpL = new THREE.Color(), tmpR = new THREE.Color();
+const LAMP_GAIN = params.has('lamp') ? +params.get('lamp') : 1.0, TV_GAIN = params.has('tvg') ? +params.get('tvg') : 1.0;
 function applyLights(lum, pw) {
   const L = lum;
+  if (baked) {
+    light.halves(tmpL, tmpR, pw);
+    LM.uTvL.value.copy(tmpL).multiplyScalar(baked.scales.tvl * TV_GAIN);
+    LM.uTvR.value.copy(tmpR).multiplyScalar(baked.scales.tvr * TV_GAIN);
+    LM.uLamp.value.setScalar(baked.scales.lamp * LAMP_GAIN);
+    tvArea.color.copy(light.avg); tvArea.intensity = 120 * L;
+    tvSpot.intensity = 0; bounce.intensity = 0; moon.intensity = 0; night.intensity = 0;
+    lamp.userData.up.intensity = lamp.userData.down.intensity = 0; lamp.userData.glow.intensity = 0;
+    scene.environmentIntensity = ENV_I;
+    return;
+  }
   tvArea.color.copy(light.avg);
   tvArea.intensity = 120 * L;
   tvSpot.intensity = 48 * (light.peak || L);
@@ -352,10 +377,10 @@ function tick(now) {
   led.intensity = 0.0009 * (romLoaded ? 1 : 0.4);
 
   // camera
-  look.x += (look.tx - look.x) * Math.min(1, dt * 2.2);
-  look.y += (look.ty - look.y) * Math.min(1, dt * 2.2);
-  const yaw = baseYaw + look.x * 0.62 + Math.sin(t * 0.21) * 0.006;
-  const pitch = basePitch - look.y * 0.3 + Math.sin(t * 0.33) * 0.004;
+  look.x += (look.tx - look.x) * Math.min(1, dt * 1.6);
+  look.y += (look.ty - look.y) * Math.min(1, dt * 1.6);
+  const yaw = baseYaw + look.x * 0.42 + Math.sin(t * 0.21) * 0.006;
+  const pitch = basePitch - look.y * 0.2 + Math.sin(t * 0.33) * 0.004;
   camera.position.set(EYE.x + Math.sin(t * 0.27) * 0.004, EYE.y + Math.sin(t * 0.52) * 0.003, EYE.z);
   camera.lookAt(camera.position.x + Math.sin(yaw) * Math.cos(pitch), camera.position.y + Math.sin(pitch), camera.position.z - Math.cos(yaw) * Math.cos(pitch));
   if (panner) panner.pan.value = Math.max(-0.6, Math.min(0.6, Math.sin(-(yaw - baseYaw) + 0.05) * 0.9));
@@ -372,17 +397,37 @@ function tick(now) {
       else if (avg < 0.0135 && dpr < MAX_DPR) { dpr = Math.min(MAX_DPR, dpr + 0.25); resize(); dprCooldown = 240; frameTimes = []; }
     }
   }
-  window.__PB = { fps: 1 / dt, dpr, L, romLoaded };
+  window.__PB = { fps: 1 / dt, dpr, L, romLoaded, buttons: readButtons(), fb: fb32[256 * 120 + 128] ^ fb32[256 * 60 + 64] ^ fb32[256 * 200 + 200] };
   requestAnimationFrame(tick);
 }
 
-loadModels().then(() => {
+function bakeExtras() {
+  tvGroup.updateMatrixWorld(true);
+  const z = SCREEN.zc + 0.004, { cx, cy, w, h } = SCREEN;
+  const q = (x0, x1) => [[x0, cy - h / 2, z], [x1, cy - h / 2, z], [x1, cy + h / 2, z], [x0, cy + h / 2, z]].map((p) => new THREE.Vector3(...p).applyMatrix4(tvGroup.matrixWorld).toArray());
+  return { screenL: q(cx - w / 2, cx), screenR: q(cx, cx + w / 2), lamp: lamp.localToWorld(new THREE.Vector3(0, 0.53, 0)).toArray(), moon: { pos: moon.position.toArray(), target: moon.target.position.toArray() } };
+}
+function b64(u8) { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); }
+
+loadModels().then(async () => {
+  if (EXPORT) {
+    await new Promise((r) => setTimeout(r, 1500)); // let textures decode for albedo sampling
+    const { header, blob } = exportScene(scene, bakeExtras());
+    window.__export = { header: JSON.stringify(header), blob: b64(blob) };
+    document.title = 'export-ready';
+    return;
+  }
+  if (!params.has('nobake')) {
+    try {
+      baked = await applyBake(scene, BASE);
+      renderer.shadowMap.enabled = false;
+      scene.traverse((o) => { if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => { m.needsUpdate = true; }); });
+    } catch (e) { console.warn('bake not applied:', e.message); baked = null; }
+  }
   captureEnvironment();
-  lamp.userData.up.shadow.needsUpdate = true; lamp.userData.down.shadow.needsUpdate = true; moon.shadow.needsUpdate = true;
   document.getElementById('loading').classList.add('gone');
   ui.start.disabled = false;
   if (TEST) {
-    // headless test hooks
     window.__test = { insert: async (url) => { started = true; ui.intro.classList.add('gone'); const r = await fetch(url); insertCartridge(url.split('/').pop(), await r.arrayBuffer(), { remember: false }); } };
   }
   requestAnimationFrame((n) => { last = n; tick(n); });

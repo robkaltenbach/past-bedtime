@@ -135,6 +135,7 @@ export function makeScreenMesh(frameTex) {
   });
   mat.extensions = { derivatives: true };
   const m = new THREE.Mesh(geo, mat);
+  m.userData.bake = 'skip';
   m.position.set(SCREEN.cx, SCREEN.cy, SCREEN.zc);
   // glossy front glass: reflections only, added on top
   const glassMat = new THREE.MeshPhysicalMaterial({
@@ -142,6 +143,7 @@ export function makeScreenMesh(frameTex) {
     transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, envMapIntensity: 0.5,
   });
   const glass = new THREE.Mesh(geo, glassMat);
+  glass.userData.bake = 'skip';
   glass.position.copy(m.position); glass.position.z += 0.0008;
   return { screen: m, glass };
 }
@@ -179,6 +181,18 @@ export class ScreenLight {
     R /= n; G /= n; B /= n;
     this.setFromCells(R, G, B, per, power);
   }
+  // linear average colour of the left and right halves of the picture (absolute, not normalised)
+  halves(outL, outR, power = 1) {
+    const { cols, rows, cells } = this; const per = this.per || 1;
+    let l = [0, 0, 0], r = [0, 0, 0];
+    for (let cy = 0; cy < rows; cy++) for (let cx = 0; cx < cols; cx++) {
+      const k = (cy * cols + cx) * 3, t = cx < cols / 2 ? l : r;
+      t[0] += cells[k]; t[1] += cells[k + 1]; t[2] += cells[k + 2];
+    }
+    const d = (rows * cols / 2) * per;
+    outL.setRGB(l[0] / d * power, l[1] / d * power, l[2] / d * power);
+    outR.setRGB(r[0] / d * power, r[1] / d * power, r[2] / d * power);
+  }
   setUniform(r, g, b, power = 1) {
     // e.g. static noise
     const { cols, rows, cells } = this; const per = 1;
@@ -187,6 +201,7 @@ export class ScreenLight {
   }
   setFromCells(R, G, B, per, power) {
     const { cols, rows, cells, data } = this;
+    this.per = per;
     const m = Math.max(R, G, B, 1e-4);
     // cookie: each cell's colour relative to the brightest channel average, blended toward the mean so it stays diffuse
     let peak = 1e-4;

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { pbr, metricUV, fbm, shadowAll, canvasTex } from './util.js';
+import { flattenInstanced } from '../bake.js';
 
 export const ROOM = { W: 3.6, D: 3.4, H: 2.45 };
 export const WIN = { z0: -0.9, z1: 0.12, y0: 0.95, y1: 2.08 };
@@ -77,7 +78,7 @@ function buildWindow(trimMat) {
   frame(WIN.y0, yc + 0.02, xs - 0.02); frame(yc - 0.02, WIN.y1, xs + 0.02);
   const glassMat = new THREE.MeshPhysicalMaterial({ color: 0x0a0e14, roughness: 0.04, metalness: 0, transparent: true, opacity: 0.18, envMapIntensity: 1.5, depthWrite: false });
   const glass = new THREE.Mesh(new THREE.PlaneGeometry(wz - 0.06, wy - 0.06), glassMat);
-  glass.position.set(xs + 0.01, yc, zc); glass.rotation.y = -Math.PI / 2; g.add(glass);
+  glass.position.set(xs + 0.01, yc, zc); glass.rotation.y = -Math.PI / 2; glass.userData.bake = 'skip'; g.add(glass);
 
   // vinyl mini-blinds, slats tilted part-open
   const nSl = 52, slatW = 0.025, span = wy - 0.06;
@@ -96,7 +97,7 @@ function buildWindow(trimMat) {
     slats.setMatrixAt(i, m4);
   }
   slats.castShadow = true; slats.receiveShadow = true;
-  g.add(slats);
+  g.add(flattenInstanced(slats));
   // headrail + bottom rail
   g.add(mesh(box(0.045, 0.04, wz - 0.005, 0.006), slatMat, hx - 0.04, WIN.y1 - 0.025, zc, 'z'));
   g.add(mesh(box(0.03, 0.012, wz - 0.02, 0.004), slatMat, hx - 0.04, WIN.y1 - span + 0.005, zc, 'z'));
@@ -131,7 +132,7 @@ function buildWindow(trimMat) {
   });
   const skyMat = new THREE.MeshBasicMaterial({ map: sky, color: new THREE.Color(1.6, 1.6, 1.6) });
   const outside = new THREE.Mesh(new THREE.PlaneGeometry(14, 7), skyMat);
-  outside.position.set(hx + 5, 1.6, zc); outside.rotation.y = -Math.PI / 2; g.add(outside);
+  outside.position.set(hx + 5, 1.6, zc); outside.rotation.y = -Math.PI / 2; outside.userData.bake = 'sky'; g.add(outside);
   return g;
 }
 
@@ -276,7 +277,7 @@ export function buildConsole() {
     const b = new THREE.Mesh(new RoundedBoxGeometry(0.028, 0.012, 0.018, 2, 0.004), dark); b.position.set(0.085, 0.078, -0.04 + i * 0.045); g.add(b);
   }
   const led = new THREE.Mesh(new THREE.SphereGeometry(0.0028, 10, 8), new THREE.MeshStandardMaterial({ color: 0x220000, emissive: 0xff1a08, emissiveIntensity: 14 }));
-  led.position.set(0.11, 0.05, 0.1); g.add(led); g.userData.led = led;
+  led.position.set(0.11, 0.05, 0.1); led.userData.bake = 'skip'; g.add(led); g.userData.led = led;
   for (let i = 0; i < 2; i++) { const p = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.007, 0.006, 12), dark); p.rotation.x = Math.PI / 2; p.position.set(-0.07 + i * 0.05, 0.03, 0.101); g.add(p); }
   return shadowAll(g);
 }
@@ -352,7 +353,7 @@ export function buildLamp() {
   const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.12, 12), brass); neck.position.y = 0.39; g.add(neck);
   const sock = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.016, 0.045, 16), brass); sock.position.y = 0.47; g.add(sock);
   const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.03, 16, 12), new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffc27a, emissiveIntensity: 40 }));
-  bulb.position.y = 0.52; bulb.castShadow = false; g.add(bulb);
+  bulb.position.y = 0.52; bulb.castShadow = false; bulb.userData.bake = 'skip'; g.add(bulb);
   // harp
   const harpCurve = new THREE.CatmullRomCurve3([[-0.09, 0.45], [-0.1, 0.55], [-0.05, 0.62], [0, 0.635], [0.05, 0.62], [0.1, 0.55], [0.09, 0.45]].map(([x, y]) => new THREE.Vector3(x, y, 0)));
   const harp = new THREE.Mesh(new THREE.TubeGeometry(harpCurve, 40, 0.0025, 6), brass); g.add(harp);
@@ -368,9 +369,9 @@ export function buildLamp() {
   });
   const shadeGeo = new THREE.CylinderGeometry(0.115, 0.19, 0.22, 48, 1, true);
   const shade = new THREE.Mesh(shadeGeo, new THREE.MeshStandardMaterial({ map: shadeTex, color: 0x4a3a2c, roughness: 0.9, emissive: 0xff8a2a, emissiveMap: shadeTex, emissiveIntensity: 1.25, side: THREE.FrontSide }));
-  shade.position.y = 0.56; g.add(shade);
+  shade.position.y = 0.56; shade.userData.bake = 'shade'; g.add(shade);
   const lining = new THREE.Mesh(shadeGeo, new THREE.MeshStandardMaterial({ color: 0xfff0d8, emissive: 0xffa050, emissiveIntensity: 2.2, roughness: 1, side: THREE.BackSide }));
-  lining.position.y = 0.56; lining.scale.setScalar(0.995); g.add(lining);
+  lining.position.y = 0.56; lining.scale.setScalar(0.995); lining.userData.bake = 'skip'; g.add(lining);
   // trims
   for (const [y, r] of [[0.67, 0.115], [0.45, 0.19]]) { const t = new THREE.Mesh(new THREE.TorusGeometry(r, 0.0035, 6, 64), new THREE.MeshStandardMaterial({ color: 0x8a5a2a, roughness: 0.7 })); t.rotation.x = Math.PI / 2; t.position.y = y; g.add(t); }
   g.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
