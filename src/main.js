@@ -3,7 +3,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUniformsLib.js';
 import { EffectComposer, RenderPass, EffectPass, BloomEffect, ToneMappingEffect, ToneMappingMode, VignetteEffect, NoiseEffect, BlendFunction, SMAAEffect, DepthOfFieldEffect, ChromaticAberrationEffect } from 'postprocessing';
 import { N8AOPostPass } from 'n8ao';
-import { buildRoom, buildBunkBed, buildConsole, buildPoster, buildGlowStars, buildLamp, cord, ROOM, WIN } from './scene/room.js';
+import { buildRoom, buildBunkBed, buildConsole, buildPoster, buildGlowStars, cord, ROOM, WIN, HALL_LIGHT } from './scene/room.js';
 import { shadowAll, setAniso } from './scene/util.js';
 import { makeScreenMesh, ScreenLight, SCREEN } from './crt.js';
 import { initInput, readButtons } from './input.js';
@@ -44,7 +44,7 @@ const bunk = buildBunkBed();
 bunk.position.set(-ROOM.W / 2 + 0.54, 0, -ROOM.D / 2 + 1.04);
 scene.add(bunk);
 const stars = buildGlowStars(); scene.add(stars);
-const poster = buildPoster(); poster.position.set(-0.42, 1.42, -ROOM.D / 2 + 0.004); poster.rotation.z = 0.012; scene.add(poster);
+const poster = buildPoster(); poster.position.set(-0.5, 1.5, -ROOM.D / 2 + 0.004); poster.rotation.z = 0.012; scene.add(poster);
 
 const consoleBox = buildConsole(); consoleBox.position.set(-0.4, 0, -0.84); consoleBox.rotation.y = 0.16; consoleBox.scale.setScalar(1.15); scene.add(consoleBox);
 
@@ -58,7 +58,7 @@ manager.onProgress = (_, done, total) => { if (progressEl) progressEl.style.widt
 const TV_S = 1.95;
 const STAND_S = [0.6, 0.6, 0.95], STAND_TOP = 0.68 * 0.6;
 const tvGroup = new THREE.Group();
-tvGroup.position.set(0.16, STAND_TOP, -1.235); tvGroup.scale.setScalar(TV_S); tvGroup.rotation.y = -0.03;
+tvGroup.position.set(0.02, STAND_TOP, -1.235); tvGroup.scale.setScalar(TV_S); tvGroup.rotation.y = -0.03;
 scene.add(tvGroup);
 
 // emulator framebuffer texture
@@ -78,7 +78,7 @@ async function loadModels() {
   stand.scale.set(...STAND_S); stand.traverse((o) => { if (o.isMesh) { o.material = o.material.clone(); o.material.color.set(0x8c7a68); } }); stand.position.set(0.02, 0, -ROOM.D / 2 + 0.342 * STAND_S[2] + 0.012); scene.add(shadowAll(stand));
   shelves.scale.setScalar(0.9); shelves.traverse((o) => { if (o.isMesh) { o.material = o.material.clone(); o.material.color.set(0x6a4a34); } }); shelves.rotation.y = Math.PI / 2; shelves.position.set(1.29, 0, -ROOM.D / 2 + 0.186 * 0.9 + 0.01); scene.add(shadowAll(shelves));
   books.scale.setScalar(0.85); books.position.set(1.0, 0.57, -1.56); scene.add(shadowAll(books));
-  clock.position.set(1.42, 1.4, -1.5); clock.rotation.y = -Math.PI / 2 + 0.5; scene.add(shadowAll(clock));
+  clock.position.set(-0.55, STAND_TOP, -1.3); clock.rotation.y = -Math.PI / 2 + 0.4; scene.add(shadowAll(clock));
   pad.position.set(0.3, 0.002, -0.78); pad.rotation.y = 2.5; scene.add(shadowAll(pad));
   crate.position.set(1.15, 0, -0.62); crate.rotation.y = -0.35; scene.add(shadowAll(crate));
   ball.position.set(1.1, 0.29, -0.6); scene.add(shadowAll(ball));
@@ -89,9 +89,8 @@ async function loadModels() {
   scene.add(cord([[-0.44, 0.04, -0.97], [-0.5, 0.004, -1.04], [-0.62, 0.05, -1.68], [-0.3, STAND_TOP + 0.05, -1.68], [0.12, STAND_TOP + 0.12, -1.62]], 0.0024, 0x8a8a80));
 }
 
-const lamp = buildLamp(); lamp.position.set(-0.5, STAND_TOP, -1.46); scene.add(lamp);
-// static lights: render their shadow maps once
-for (const l of [lamp.userData.up, lamp.userData.down]) { l.shadow.autoUpdate = false; l.shadow.needsUpdate = true; }
+// hallway light (realtime fallback only; with the bake it's in the static lightmap)
+const hall = new THREE.PointLight(0xffc488, 0.6, 0, 2); hall.position.set(...HALL_LIGHT); scene.add(hall);
 
 // ---------------------------------------------------------------- lights
 // TV world-space emitter frame
@@ -156,7 +155,7 @@ if (!params.has('nodof')) composer.addPass(new EffectPass(camera, dof));
 composer.addPass(new EffectPass(camera, bloom, ca));
 composer.addPass(new EffectPass(camera, tone, vignette));
 composer.addPass(new EffectPass(camera, new SMAAEffect(), grain));
-renderer.toneMappingExposure = 2.4;
+renderer.toneMappingExposure = params.has('exp') ? +params.get('exp') : 2.4;
 
 // ---------------------------------------------------------------- environment (captured once, scaled live)
 function captureEnvironment() {
@@ -311,7 +310,7 @@ addEventListener('pointermove', (e) => {
   look.ty = f((e.clientY / innerHeight) * 2 - 1);
 });
 document.addEventListener('mouseleave', () => { look.tx = 0; look.ty = 0; });
-const baseTarget = new THREE.Vector3(0.08, 0.7, -1.3);
+const baseTarget = new THREE.Vector3(0.0, 0.7, -1.3);
 const baseDir = baseTarget.clone().sub(EYE).normalize();
 const baseYaw = Math.atan2(baseDir.x, -baseDir.z), basePitch = Math.asin(baseDir.y);
 if (params.has('cam')) { const [yx, yy] = params.get('cam').split(',').map(Number); look.tx = look.x = yx; look.ty = look.y = yy; }
@@ -319,17 +318,20 @@ if (params.has('cam')) { const [yx, yy] = params.get('cam').split(',').map(Numbe
 // ---------------------------------------------------------------- frame loop
 const ENV_I = params.has('env') ? +params.get('env') : 0.2;
 const tmpL = new THREE.Color(), tmpR = new THREE.Color();
-const LAMP_GAIN = params.has('lamp') ? +params.get('lamp') : 1.0, TV_GAIN = params.has('tvg') ? +params.get('tvg') : 1.0;
+const LAMP_GAIN = params.has('hall') ? +params.get('hall') : 1.5, TV_GAIN = params.has('tvg') ? +params.get('tvg') : 3.0;
 function applyLights(lum, pw) {
   const L = lum;
   if (baked) {
     light.halves(tmpL, tmpR, pw);
-    LM.uTvL.value.copy(tmpL).multiplyScalar(baked.scales.tvl * TV_GAIN);
-    LM.uTvR.value.copy(tmpR).multiplyScalar(baked.scales.tvr * TV_GAIN);
-    LM.uLamp.value.setScalar(baked.scales.lamp * LAMP_GAIN);
-    tvArea.color.copy(light.avg); tvArea.intensity = 120 * L;
+    // Cycles' diffuse light pass is outgoing radiance for albedo 1; three wants irradiance (x PI).
+    // The baked screen emitted radiance 1; ours shows the picture at uBright.
+    const k = Math.PI * screenU.uBright.value;
+    LM.uTvL.value.copy(tmpL).multiplyScalar(baked.scales.tvl * k * TV_GAIN);
+    LM.uTvR.value.copy(tmpR).multiplyScalar(baked.scales.tvr * k * TV_GAIN);
+    LM.uLamp.value.setScalar(baked.scales.lamp * Math.PI * LAMP_GAIN);
+    tvArea.color.copy(light.avg); tvArea.intensity = 1.5 * L * TV_GAIN;
     tvSpot.intensity = 0; bounce.intensity = 0; moon.intensity = 0; night.intensity = 0;
-    lamp.userData.up.intensity = lamp.userData.down.intensity = 0; lamp.userData.glow.intensity = 0;
+    hall.intensity = 0;
     scene.environmentIntensity = ENV_I;
     return;
   }
@@ -405,7 +407,7 @@ function bakeExtras() {
   tvGroup.updateMatrixWorld(true);
   const z = SCREEN.zc + 0.004, { cx, cy, w, h } = SCREEN;
   const q = (x0, x1) => [[x0, cy - h / 2, z], [x1, cy - h / 2, z], [x1, cy + h / 2, z], [x0, cy + h / 2, z]].map((p) => new THREE.Vector3(...p).applyMatrix4(tvGroup.matrixWorld).toArray());
-  return { screenL: q(cx - w / 2, cx), screenR: q(cx, cx + w / 2), lamp: lamp.localToWorld(new THREE.Vector3(0, 0.53, 0)).toArray(), moon: { pos: moon.position.toArray(), target: moon.target.position.toArray() } };
+  return { screenL: q(cx - w / 2, cx), screenR: q(cx, cx + w / 2), lamp: HALL_LIGHT, moon: { pos: moon.position.toArray(), target: moon.target.position.toArray() } };
 }
 function b64(u8) { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); }
 
@@ -421,6 +423,17 @@ loadModels().then(async () => {
     try {
       baked = await applyBake(scene, BASE);
       renderer.shadowMap.enabled = false;
+      // physically consistent exposure: the room is lit only by the baked screen + hall, so expose for the room
+      // and run the tube at a real CRT's brightness relative to it
+      if (!params.has('exp')) renderer.toneMappingExposure = 9;
+      if (!params.has('bright')) screenU.uBright.value = 0.45;
+      screenU.uRoom.value = 0.25;
+      bloom.luminanceMaterial.threshold = 0.2;
+      scene.traverse((o) => {
+        const m = o.material; if (!m || Array.isArray(m) || !m.emissive) return;
+        if (o.isInstancedMesh) m.emissiveIntensity = 0.06; // glow stars
+      });
+      consoleBox.userData.led.material.emissiveIntensity = 3;
       scene.traverse((o) => { if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => { m.needsUpdate = true; }); });
     } catch (e) { console.warn('bake not applied:', e.message); baked = null; }
   }

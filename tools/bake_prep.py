@@ -43,7 +43,7 @@ for i, (m, P, N, I) in enumerate(meshes):
     if m['mode'] != 'lm':
         blend[f'P{i}'] = P; blend[f'N{i}'] = N; blend[f'I{i}'] = I.astype(np.int32)
 open(f'{d}/uv.bin', 'wb').write(bytes(out))
-json.dump({'resolution': res, 'meshes': meta}, open(f'{d}/bake.json', 'w'))
+json.dump({'resolution': res, 'atlas': int(atlas.width), 'meshes': meta}, open(f'{d}/bake.json', 'w'))
 info = {k: v for k, v in H.items() if k != 'meshes'}
 info['meshes'] = [{'mode': m['mode'], 'albedo': m['albedo'], 'name': m['name']} for (m, *_r) in meshes]
 np.savez_compressed(f'{d}/blender.npz', info=json.dumps(info), **blend)

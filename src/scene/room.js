@@ -3,8 +3,11 @@ import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.j
 import { pbr, metricUV, fbm, shadowAll, canvasTex } from './util.js';
 import { flattenInstanced } from '../bake.js';
 
-export const ROOM = { W: 3.6, D: 3.4, H: 2.45 };
+const ROOM_H_ = 2.45;
+export const ROOM = { W: 3.6, D: 3.4, H: ROOM_H_ };
 export const WIN = { z0: -0.9, z1: 0.12, y0: 0.95, y1: 2.08 };
+export const DOOR = { x0: 0.78, x1: 1.58, h: 2.03, open: 0.2 };
+export const HALL_LIGHT = [1.15, ROOM_H_ - 0.12, 2.55];
 
 const box = (w, h, d, r = 0, seg = 2) => (r > 0 ? new RoundedBoxGeometry(w, h, d, seg, r) : new THREE.BoxGeometry(w, h, d));
 function mesh(geo, mat, x, y, z, grain = 'y') {
@@ -27,7 +30,17 @@ export function buildRoom() {
   const ceil = mesh(box(W, T, D), ceilMat, 0, H + T / 2, 0); g.add(ceil);
   // far, back, left walls
   g.add(mesh(box(W + 2 * T, H, T), wallMat, 0, H / 2, -hz - T / 2, 'x'));
-  g.add(mesh(box(W + 2 * T, H, T), wallMat, 0, H / 2, hz + T / 2, 'x'));
+  // back wall with a doorway out to the hall
+  {
+    const bs = new THREE.Shape();
+    bs.moveTo(-hx - T, 0); bs.lineTo(hx + T, 0); bs.lineTo(hx + T, H); bs.lineTo(-hx - T, H); bs.lineTo(-hx - T, 0);
+    const dh = new THREE.Path();
+    dh.moveTo(DOOR.x0, 0); dh.lineTo(DOOR.x1, 0); dh.lineTo(DOOR.x1, DOOR.h); dh.lineTo(DOOR.x0, DOOR.h); dh.lineTo(DOOR.x0, 0);
+    bs.holes.push(dh);
+    const bg = new THREE.ExtrudeGeometry(bs, { depth: T, bevelEnabled: false });
+    bg.translate(0, 0, hz); bg.computeVertexNormals();
+    g.add(mesh(bg, wallMat, 0, 0, 0, 'x'));
+  }
   g.add(mesh(box(T, H, D), wallMat, -hx - T / 2, H / 2, 0, 'z'));
   // right wall with window opening (extruded shape gives the reveal)
   const s = new THREE.Shape();
@@ -48,9 +61,12 @@ export function buildRoom() {
   g.add(mesh(box(W, bbH, bbT, 0.004), trimMat, 0, bbH / 2, -hz + bbT / 2, 'x'));
   g.add(mesh(box(bbT, bbH, D, 0.004), trimMat, -hx + bbT / 2, bbH / 2, 0, 'z'));
   g.add(mesh(box(bbT, bbH, D, 0.004), trimMat, hx - bbT / 2, bbH / 2, 0, 'z'));
-  g.add(mesh(box(W, bbH, bbT, 0.004), trimMat, 0, bbH / 2, hz - bbT / 2, 'x'));
+  { const a = -hx, b = DOOR.x0 - 0.07, c = DOOR.x1 + 0.07, d = hx;
+    g.add(mesh(box(b - a, bbH, bbT, 0.004), trimMat, (a + b) / 2, bbH / 2, hz - bbT / 2, 'x'));
+    g.add(mesh(box(d - c, bbH, bbT, 0.004), trimMat, (c + d) / 2, bbH / 2, hz - bbT / 2, 'x')); }
 
   g.add(buildWindow(trimMat));
+  g.add(buildDoorAndHall(trimMat, floorMat));
   return g;
 }
 
@@ -130,7 +146,7 @@ function buildWindow(trimMat) {
     lg.addColorStop(0, 'rgba(220,230,255,1)'); lg.addColorStop(0.15, 'rgba(160,180,255,0.5)'); lg.addColorStop(1, 'rgba(0,0,0,0)');
     c.fillStyle = lg; c.fillRect(150, 200, 200, 200);
   });
-  const skyMat = new THREE.MeshBasicMaterial({ map: sky, color: new THREE.Color(1.6, 1.6, 1.6) });
+  const skyMat = new THREE.MeshBasicMaterial({ map: sky, color: new THREE.Color(0.3, 0.3, 0.3) });
   const outside = new THREE.Mesh(new THREE.PlaneGeometry(14, 7), skyMat);
   outside.position.set(hx + 5, 1.6, zc); outside.rotation.y = -Math.PI / 2; outside.userData.bake = 'sky'; g.add(outside);
   return g;
@@ -389,5 +405,43 @@ export function buildLamp() {
   const glow = new THREE.PointLight(0xff8a35, 0.3, 0, 2); glow.position.y = 0.56;
   g.add(glow);
   g.userData = { up, down, glow };
+  return g;
+}
+
+function buildDoorAndHall(trimMat, carpet) {
+  const g = new THREE.Group();
+  const hz = ROOM.D / 2, T = 0.12, H = ROOM.H;
+  const dw = DOOR.x1 - DOOR.x0, cw = 0.07, ct = 0.016;
+  // casing on the room side
+  g.add(mesh(box(cw, DOOR.h + cw, ct, 0.004), trimMat, DOOR.x0 - cw / 2, (DOOR.h + cw) / 2, hz - ct / 2));
+  g.add(mesh(box(cw, DOOR.h + cw, ct, 0.004), trimMat, DOOR.x1 + cw / 2, (DOOR.h + cw) / 2, hz - ct / 2));
+  g.add(mesh(box(dw + 2 * cw, cw, ct, 0.004), trimMat, (DOOR.x0 + DOOR.x1) / 2, DOOR.h + cw / 2, hz - ct / 2, 'x'));
+  // jambs inside the opening
+  const jamb = new THREE.MeshStandardMaterial({ color: 0x5a3a24, roughness: 0.5 });
+  g.add(mesh(box(0.015, DOOR.h, T, 0), jamb, DOOR.x0 + 0.0075, DOOR.h / 2, hz + T / 2));
+  g.add(mesh(box(0.015, DOOR.h, T, 0), jamb, DOOR.x1 - 0.0075, DOOR.h / 2, hz + T / 2));
+  g.add(mesh(box(dw, 0.015, T, 0), jamb, (DOOR.x0 + DOOR.x1) / 2, DOOR.h - 0.0075, hz + T / 2, 'x'));
+  // the door: hinged on the right, swung a little into the room
+  const doorMat = new THREE.MeshStandardMaterial({ color: 0x6b4630, roughness: 0.45 });
+  const dg = new RoundedBoxGeometry(dw - 0.03, DOOR.h - 0.02, 0.038, 2, 0.004);
+  dg.translate(-(dw - 0.03) / 2, (DOOR.h - 0.02) / 2, 0);
+  const door = mesh(dg, doorMat, 0, 0, 0, 'y');
+  const pivot = new THREE.Group(); pivot.position.set(DOOR.x1 - 0.02, 0.005, hz + 0.03); pivot.rotation.y = -DOOR.open; pivot.add(door); g.add(pivot);
+  for (const [px, py, pw, ph] of [[-0.2, 1.45, 0.26, 0.62], [-0.55, 1.45, 0.26, 0.62], [-0.2, 0.52, 0.26, 0.62], [-0.55, 0.52, 0.26, 0.62]]) {
+    const pnl = mesh(box(pw, ph, 0.006, 0.003), doorMat, px, py, -0.021); pivot.add(pnl);
+  }
+  const knob = new THREE.Mesh(new THREE.SphereGeometry(0.026, 16, 12), new THREE.MeshStandardMaterial({ color: 0xb08a4a, metalness: 1, roughness: 0.3 }));
+  knob.position.set(-(dw - 0.1), 0.95, -0.04); pivot.add(knob);
+  // hallway beyond
+  const hallWall = new THREE.MeshStandardMaterial({ color: 0xbfae94, roughness: 0.85 });
+  const z0 = hz + T, z1 = z0 + 1.15, x0 = -0.2, x1 = 2.9;
+  g.add(mesh(box(x1 - x0, 0.05, z1 - z0), carpet, (x0 + x1) / 2, -0.025, (z0 + z1) / 2, 'z'));
+  g.add(mesh(box(x1 - x0, 0.05, z1 - z0), hallWall, (x0 + x1) / 2, H + 0.025, (z0 + z1) / 2, 'z'));
+  g.add(mesh(box(x1 - x0, H, 0.06), hallWall, (x0 + x1) / 2, H / 2, z1 + 0.03, 'x'));
+  g.add(mesh(box(0.06, H, z1 - z0), hallWall, x0 - 0.03, H / 2, (z0 + z1) / 2, 'z'));
+  g.add(mesh(box(0.06, H, z1 - z0), hallWall, x1 + 0.03, H / 2, (z0 + z1) / 2, 'z'));
+  // ceiling fixture
+  const dome = new THREE.Mesh(new THREE.SphereGeometry(0.16, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffd2a0, emissiveIntensity: 1.5 }));
+  dome.rotation.x = Math.PI; dome.scale.y = 0.45; dome.position.set(HALL_LIGHT[0], H - 0.005, HALL_LIGHT[2]); dome.userData.bake = 'skip'; g.add(dome);
   return g;
 }
