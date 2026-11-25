@@ -100,8 +100,8 @@ mo.rotation_euler = dvec.to_track_quat('-Z', 'Y').to_euler()
 
 def setup(p):
     bulb.energy = 75 if p == 'lamp' else 0
-    moon.energy = 30 if p == 'lamp' else 0
-    emitters['sky'].inputs['Strength'].default_value = 0.15 if p == 'lamp' else 0.0
+    moon.energy = 0  # Rob: light is the TV plus the hall, nothing else
+    emitters['sky'].inputs['Strength'].default_value = 0.0
     emitters['tvl'].inputs[1].default_value = 1.0 if p == 'tvl' else 0.0
     emitters['tvr'].inputs[1].default_value = 1.0 if p == 'tvr' else 0.0
 

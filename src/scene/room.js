@@ -20,8 +20,8 @@ export function buildRoom() {
   const { W, D, H } = ROOM, hx = W / 2, hz = D / 2, T = 0.12;
 
   // knotty-pine style paneling: planked wood texture run vertically
-  const wallMat = pbr('wood_floor_worn', { size: 1.5, color: 0x7a6250, normalScale: 0.9, ao: 0.9, clearcoat: 0.55, clearcoatRoughness: 0.32 });
-  const floorMat = pbr('curly_teddy_natural', { size: 0.35, color: 0x6a5242, normalScale: 1.6, sheen: 1, sheenRoughness: 0.75, sheenColor: new THREE.Color(0x8a7060) });
+  const wallMat = pbr('wood_floor_worn', { size: 1.5, color: 0x8c7260, normalScale: 0.9, ao: 0.9, clearcoat: 0.55, clearcoatRoughness: 0.32 });
+  const floorMat = pbr('curly_teddy_natural', { size: 0.35, color: 0x9c8872, normalScale: 1.6, sheen: 1, sheenRoughness: 0.75, sheenColor: new THREE.Color(0x8a7060) });
   const ceilMat = pbr('ceiling_interior', { size: 0.9, color: 0xe9e5dc, normalScale: 1.4 });
   const trimMat = new THREE.MeshStandardMaterial({ color: 0x4a2f1e, roughness: 0.45 });
 
@@ -157,7 +157,7 @@ function comforterGeo(w, l, drop, { headGap = 0.5, seed = 1, thick = 0.035 } = {
   // a plane draped over a mattress whose top is at y=0, centred at x=0, foot at z=+l/2
   const cov = l - headGap;
   const W = w + 2 * drop, L = cov + drop;
-  const sx = 140, sz = 180;
+  const sx = 80, sz = 110;
   const geo = new THREE.PlaneGeometry(W, L, sx, sz); geo.rotateX(-Math.PI / 2);
   const p = geo.attributes.position, r = 0.05;
   const zStart = -l / 2 + headGap;

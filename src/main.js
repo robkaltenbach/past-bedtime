@@ -20,7 +20,7 @@ const VIEW = params.has('view') ? params.get('view').split(',').map(Number) : nu
 // ---------------------------------------------------------------- renderer
 const canvas = document.getElementById('c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance', stencil: false, depth: true });
-const MAX_DPR = Math.min(window.devicePixelRatio || 1, 2);
+const MAX_DPR = Math.min(window.devicePixelRatio || 1, 1.5);
 let dpr = TEST ? 1 : MAX_DPR;
 renderer.setPixelRatio(dpr);
 renderer.setSize(innerWidth, innerHeight);
@@ -34,8 +34,8 @@ RectAreaLightUniformsLib.init();
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x000000);
-const camera = new THREE.PerspectiveCamera(39, innerWidth / innerHeight, 0.03, 30);
-const EYE = new THREE.Vector3(0.3, 0.52, 0.92);
+const camera = new THREE.PerspectiveCamera(43, innerWidth / innerHeight, 0.03, 30);
+const EYE = new THREE.Vector3(0.32, 0.64, 0.78);
 camera.position.copy(EYE);
 
 // ---------------------------------------------------------------- room
@@ -143,16 +143,16 @@ const composer = new EffectComposer(renderer, { frameBufferType: THREE.HalfFloat
 composer.addPass(new RenderPass(scene, camera));
 const ao = new N8AOPostPass(scene, camera, innerWidth, innerHeight);
 Object.assign(ao.configuration, { aoRadius: 0.22, distanceFalloff: 0.6, intensity: 1.6, halfRes: true, depthAwareUpsampling: true, gammaCorrection: false, aoSamples: 12, denoiseSamples: 6, denoiseRadius: 10 });
-if (!params.has('noao')) composer.addPass(ao);
-const bloom = new BloomEffect({ mipmapBlur: true, intensity: 0.75, luminanceThreshold: 0.75, luminanceSmoothing: 0.35, radius: 0.72 });
+if (params.has('ao')) composer.addPass(ao);
+const bloom = new BloomEffect({ mipmapBlur: true, intensity: 0.45, luminanceThreshold: 0.75, luminanceSmoothing: 0.35, radius: 0.72 });
 const tone = new ToneMappingEffect({ mode: ToneMappingMode.AGX });
 const vignette = new VignetteEffect({ offset: 0.35, darkness: 0.38 });
 const grain = new NoiseEffect({ premultiply: true, blendFunction: BlendFunction.ADD });
-grain.blendMode.opacity.value = 0.16;
+grain.blendMode.opacity.value = 0.08;
 const dof = new DepthOfFieldEffect(camera, { worldFocusDistance: 2.25, worldFocusRange: 1.6, bokehScale: 2.2, resolutionScale: 0.5 });
 const ca = new ChromaticAberrationEffect({ offset: new THREE.Vector2(0.0006, 0.0004), radialModulation: true, modulationOffset: 0.35 });
-if (!params.has('nodof')) composer.addPass(new EffectPass(camera, dof));
-composer.addPass(new EffectPass(camera, bloom, ca));
+if (params.has('dof')) composer.addPass(new EffectPass(camera, dof));
+composer.addPass(new EffectPass(camera, bloom));
 composer.addPass(new EffectPass(camera, tone, vignette));
 composer.addPass(new EffectPass(camera, new SMAAEffect(), grain));
 renderer.toneMappingExposure = params.has('exp') ? +params.get('exp') : 2.4;
@@ -310,7 +310,7 @@ addEventListener('pointermove', (e) => {
   look.ty = f((e.clientY / innerHeight) * 2 - 1);
 });
 document.addEventListener('mouseleave', () => { look.tx = 0; look.ty = 0; });
-const baseTarget = new THREE.Vector3(0.0, 0.7, -1.3);
+const baseTarget = new THREE.Vector3(0.0, 0.6, -1.3);
 const baseDir = baseTarget.clone().sub(EYE).normalize();
 const baseYaw = Math.atan2(baseDir.x, -baseDir.z), basePitch = Math.asin(baseDir.y);
 if (params.has('cam')) { const [yx, yy] = params.get('cam').split(',').map(Number); look.tx = look.x = yx; look.ty = look.y = yy; }
