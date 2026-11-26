@@ -321,7 +321,7 @@ if (params.has('cam')) { const [yx, yy] = params.get('cam').split(',').map(Numbe
 // because dark-adapted eyes shift toward blue (Purkinje effect)
 // The room light is shown the way film shows TV glow: as if white-balanced for a warm house (WB kelvin),
 // so a 9300K tube reads properly blue on everything it touches.
-const SCREEN_K = params.has('k') ? +params.get('k') : 9300, WB_K = params.has('wb') ? +params.get('wb') : 4300;
+const SCREEN_K = params.has('k') ? +params.get('k') : 9300, WB_K = params.has('wb') ? +params.get('wb') : 3000;
 screenU.uWhite.value.copy(whitePoint(SCREEN_K));
 const rt = whitePoint(SCREEN_K).divide(whitePoint(WB_K).divideScalar(1));
 rt.divideScalar(0.2126 * rt.x + 0.7152 * rt.y + 0.0722 * rt.z);
