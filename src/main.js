@@ -81,7 +81,7 @@ async function loadModels() {
   clock.position.set(-0.55, STAND_TOP, -1.3); clock.rotation.y = -Math.PI / 2 + 0.4; scene.add(shadowAll(clock));
   pad.position.set(0.3, 0.002, -0.78); pad.rotation.y = 2.5; scene.add(shadowAll(pad));
   crate.position.set(1.15, 0, -0.62); crate.rotation.y = -0.35; scene.add(shadowAll(crate));
-  ball.position.set(1.1, 0.29, -0.6); scene.add(shadowAll(ball));
+  ball.position.set(1.1, 0.29, -0.6); ball.visible = false; scene.add(shadowAll(ball)); // kept in the graph so the bake still matches
   pillows.position.set(-1.1, 0.48, 0.05); pillows.rotation.y = 1.3; pillows.scale.setScalar(0.85); scene.add(shadowAll(pillows));
   dart.position.set(ROOM.W / 2 - 0.002, 1.62, 0.95); dart.rotation.y = -Math.PI / 2; scene.add(shadowAll(dart));
   // controller cord from the console to the pad, AV lead up behind the stand
@@ -319,9 +319,13 @@ if (params.has('cam')) { const [yx, yy] = params.get('cam').split(',').map(Numbe
 // ---------------------------------------------------------------- frame loop
 // CRT white point (9300K) on the picture; the light it throws into the dark room reads cooler still,
 // because dark-adapted eyes shift toward blue (Purkinje effect)
-const SCREEN_K = params.has('k') ? +params.get('k') : 9300, ROOM_K = params.has('roomk') ? +params.get('roomk') : 13000;
+// The room light is shown the way film shows TV glow: as if white-balanced for a warm house (WB kelvin),
+// so a 9300K tube reads properly blue on everything it touches.
+const SCREEN_K = params.has('k') ? +params.get('k') : 9300, WB_K = params.has('wb') ? +params.get('wb') : 4300;
 screenU.uWhite.value.copy(whitePoint(SCREEN_K));
-const rt = whitePoint(ROOM_K), ROOM_TINT = new THREE.Color(rt.x, rt.y, rt.z);
+const rt = whitePoint(SCREEN_K).divide(whitePoint(WB_K).divideScalar(1));
+rt.divideScalar(0.2126 * rt.x + 0.7152 * rt.y + 0.0722 * rt.z);
+const ROOM_TINT = new THREE.Color(rt.x, rt.y, rt.z);
 const ENV_I = params.has('env') ? +params.get('env') : 0.2;
 const tmpL = new THREE.Color(), tmpR = new THREE.Color();
 const LAMP_GAIN = params.has('hall') ? +params.get('hall') : 0, TV_GAIN = params.has('tvg') ? +params.get('tvg') : 4.0;
