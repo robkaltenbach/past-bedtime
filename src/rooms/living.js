@@ -166,7 +166,9 @@ export default {
   camera: { eye: [0.3, 0.66, 1.05], target: [-0.15, 0.74, -1.9], fov: 42, orbit: [0, 0.9, -0.6] },
   tv: { pos: [-0.2, STAND_TOP, -R.D / 2 + 0.228 * TV_S + 0.03], scale: TV_S, rotY: 0.02 },
   models: ['television_02', 'modern_wooden_cabinet', 'sofa_03', 'ArmChair_01', 'Ottoman_01', 'potted_plant_02', 'wicker_basket_01', 'rubber_duck_toy', 'football', 'cardboard_box_01', 'throw_pillows_01'],
-  staticGain: 1,
+  staticGain: 0,
+  tvGain: 6,
+  fill: 0.0035,
   room: R,
   build(scene) {
     scene.add(buildShell());

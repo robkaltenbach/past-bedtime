@@ -299,10 +299,10 @@ rt.divideScalar(0.2126 * rt.x + 0.7152 * rt.y + 0.0722 * rt.z);
 const ROOM_TINT = new THREE.Color(rt.x, rt.y, rt.z);
 const ENV_I = params.has('env') ? +params.get('env') : 0.2;
 const tmpL = new THREE.Color(), tmpR = new THREE.Color();
-const LAMP_GAIN = params.has('amb') ? +params.get('amb') : room.staticGain, TV_GAIN = params.has('tvg') ? +params.get('tvg') : 4.0;
+const LAMP_GAIN = params.has('amb') ? +params.get('amb') : room.staticGain, TV_GAIN = params.has('tvg') ? +params.get('tvg') : (room.tvGain || 4.0);
 const DEV = {
   tvLeft: true, tvRight: true, ambient: true, spec: true,
-  tvGain: TV_GAIN, ambientGain: LAMP_GAIN, wb: WB_K, tubeK: SCREEN_K,
+  tvGain: TV_GAIN, ambientGain: LAMP_GAIN, fill: params.has('fill') ? +params.get('fill') : (room.fill || 0), wb: WB_K, tubeK: SCREEN_K,
   freeze: false, view: 'final',
 };
 function setWhite() {
@@ -321,6 +321,7 @@ function applyLights(lum, pw) {
     LM.uTvL.value.copy(tmpL).multiply(ROOM_TINT).multiplyScalar(baked.scales.tvl * k * DEV.tvGain * (DEV.tvLeft ? 1 : 0));
     LM.uTvR.value.copy(tmpR).multiply(ROOM_TINT).multiplyScalar(baked.scales.tvr * k * DEV.tvGain * (DEV.tvRight ? 1 : 0));
     LM.uLamp.value.setScalar((baked.scales.lamp || 0) * Math.PI * DEV.ambientGain * (DEV.ambient ? 1 : 0));
+    LM.uFill.value.setRGB(0.8, 0.86, 1).multiplyScalar(DEV.fill * (DEV.ambient ? 1 : 0));
     tvArea.color.copy(light.avg).multiply(ROOM_TINT); tvArea.intensity = DEV.spec ? 1.5 * L * DEV.tvGain : 0;
     fallback.intensity = 0;
     scene.environmentIntensity = DEV.spec ? ENV_I : 0;

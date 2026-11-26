@@ -22,10 +22,10 @@ export function initDev(ctx) {
     const lf = gui.addFolder('Light layers (baked in Blender Cycles)');
     lf.add(DEV, 'tvLeft').name('TV · left half of picture');
     lf.add(DEV, 'tvRight').name('TV · right half of picture');
-    if (room.staticGain > 0) lf.add(DEV, 'ambient').name('Night sky (static)');
+    lf.add(DEV, 'ambient').name('Ambient fill');
     lf.add(DEV, 'spec').name('Live reflections');
     lf.add(DEV, 'tvGain', 0, 12, 0.1).name('TV brightness');
-    if (room.staticGain > 0) lf.add(DEV, 'ambientGain', 0, 4, 0.05).name('Sky brightness');
+    lf.add(DEV, 'fill', 0, 0.02, 0.0005).name('Ambient fill amount');
     const cf = gui.addFolder('Colour');
     cf.add(DEV, 'tubeK', 6500, 12000, 100).name('Tube white (K)').onChange(setWhite);
     cf.add(DEV, 'wb', 2000, 9300, 100).name('Eye balance (K)').onChange(setWhite);

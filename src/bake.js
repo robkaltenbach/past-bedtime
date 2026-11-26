@@ -71,6 +71,7 @@ export const LM = {
   uTvL: { value: new THREE.Color(0, 0, 0) },
   uTvR: { value: new THREE.Color(0, 0, 0) },
   lmTvL: { value: null }, lmTvR: { value: null },
+  uFill: { value: new THREE.Color(0, 0, 0) }, // flat 'eyes adjusted' lift, no shadows, kept tiny
   uDebug: { value: 0 }, // 0 final, 1 lighting only (white albedo)
 };
 
@@ -79,7 +80,7 @@ const mapsChunk = ShaderChunk.lights_fragment_maps
     vec3 lmA = pow( texture2D( lightMap, vLightMapUv ).rgb, vec3( 2.2 ) );
     vec3 lmB = pow( texture2D( lmTvL, vLightMapUv ).rgb, vec3( 2.2 ) );
     vec3 lmC = pow( texture2D( lmTvR, vLightMapUv ).rgb, vec3( 2.2 ) );
-    irradiance = lmA * uLamp + lmB * uTvL + lmC * uTvR;`)
+    irradiance = lmA * uLamp + lmB * uTvL + lmC * uTvR + uFill;`)
   .replace('iblIrradiance += getIBLIrradiance( geometryNormal );', '');
 
 function patchMaterial(mat, lampTex) {
@@ -92,7 +93,7 @@ function patchMaterial(mat, lampTex) {
       .replace('#include <lights_fragment_maps>', mapsChunk)
       .replace('#include <lights_fragment_end>', '#include <lights_fragment_end>\n\treflectedLight.directDiffuse = vec3( 0.0 );')
       .replace('#include <color_fragment>', '#include <color_fragment>\n\tif ( uDebug == 1 ) diffuseColor.rgb = vec3( 0.72 );')
-      .replace('void main() {', 'uniform sampler2D lmTvL, lmTvR; uniform vec3 uLamp, uTvL, uTvR; uniform int uDebug;\nvoid main() {');
+      .replace('void main() {', 'uniform sampler2D lmTvL, lmTvR; uniform vec3 uLamp, uTvL, uTvR, uFill; uniform int uDebug;\nvoid main() {');
   };
   mat.customProgramCacheKey = () => 'lm';
   mat.needsUpdate = true;
