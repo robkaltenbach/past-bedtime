@@ -11,6 +11,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "lil-gui": "^0.21.0",
     "n8ao": "^2.1.0",
     "postprocessing": "^6.39.6",
     "three": "^0.187.0"

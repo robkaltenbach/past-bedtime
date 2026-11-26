@@ -281,20 +281,106 @@ export function buildBunkBed() {
 
 // ---------- small procedural props ----------
 export function buildConsole() {
-  // generic early-90s grey game console (original design)
+  // original late-80s console: charcoal wedge, brushed-aluminium front strip, top cartridge bay with smoked flap
   const g = new THREE.Group();
-  const grey = new THREE.MeshStandardMaterial({ color: 0xbfbcb4, roughness: 0.55 });
-  const dark = new THREE.MeshStandardMaterial({ color: 0x2b2b2e, roughness: 0.6 });
-  const body = new THREE.Mesh(new RoundedBoxGeometry(0.26, 0.075, 0.2, 4, 0.012), grey); body.position.y = 0.0375; g.add(body);
-  const top = new THREE.Mesh(new RoundedBoxGeometry(0.15, 0.02, 0.12, 3, 0.006), dark); top.position.set(-0.03, 0.078, -0.01); g.add(top);
-  const slot = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.004, 0.012), new THREE.MeshStandardMaterial({ color: 0x050505, roughness: 1 }));
-  slot.position.set(-0.03, 0.089, -0.01); g.add(slot);
-  for (let i = 0; i < 2; i++) {
-    const b = new THREE.Mesh(new RoundedBoxGeometry(0.028, 0.012, 0.018, 2, 0.004), dark); b.position.set(0.085, 0.078, -0.04 + i * 0.045); g.add(b);
+  const body = new THREE.MeshPhysicalMaterial({ color: 0x2a2a2c, roughness: 0.62, clearcoat: 0.15, clearcoatRoughness: 0.6 });
+  const trim = new THREE.MeshStandardMaterial({ color: 0x9a9a98, metalness: 1, roughness: 0.38 });
+  const black = new THREE.MeshStandardMaterial({ color: 0x0b0b0c, roughness: 0.8 });
+  const smoke = new THREE.MeshPhysicalMaterial({ color: 0x2a1a10, roughness: 0.12, clearcoat: 1, transparent: true, opacity: 0.82 });
+  const W = 0.29, D = 0.22;
+  // wedge profile, extruded across the width
+  const prof = new THREE.Shape();
+  prof.moveTo(-D / 2, 0); prof.lineTo(D / 2, 0); prof.lineTo(D / 2, 0.048); prof.quadraticCurveTo(D / 2 - 0.004, 0.056, D / 2 - 0.02, 0.058);
+  prof.lineTo(-D / 2 + 0.03, 0.082); prof.quadraticCurveTo(-D / 2, 0.086, -D / 2, 0.07); prof.lineTo(-D / 2, 0);
+  const bg = new THREE.ExtrudeGeometry(prof, { depth: W, bevelEnabled: true, bevelSize: 0.003, bevelThickness: 0.003, bevelSegments: 3, curveSegments: 10 });
+  bg.rotateY(Math.PI / 2); bg.translate(-W / 2, 0, 0); bg.computeVertexNormals();
+  metricUV(bg); g.add(new THREE.Mesh(bg, body));
+  // brushed strip across the front face
+  const strip = new THREE.Mesh(new RoundedBoxGeometry(W - 0.012, 0.018, 0.004, 2, 0.0015), trim); strip.position.set(0, 0.03, D / 2 + 0.002); g.add(strip);
+  // rocker switches on the strip
+  for (const [x, w] of [[0.08, 0.026], [0.112, 0.026]]) {
+    const r = new THREE.Mesh(new RoundedBoxGeometry(w, 0.011, 0.006, 2, 0.002), black); r.position.set(x, 0.03, D / 2 + 0.005); g.add(r);
   }
-  const led = new THREE.Mesh(new THREE.SphereGeometry(0.0028, 10, 8), new THREE.MeshStandardMaterial({ color: 0x220000, emissive: 0xff1a08, emissiveIntensity: 14 }));
-  led.position.set(0.11, 0.05, 0.1); led.userData.bake = 'skip'; g.add(led); g.userData.led = led;
-  for (let i = 0; i < 2; i++) { const p = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.007, 0.006, 12), dark); p.rotation.x = Math.PI / 2; p.position.set(-0.07 + i * 0.05, 0.03, 0.101); g.add(p); }
+  // controller ports
+  for (const x of [-0.1, -0.065]) {
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.0065, 0.0016, 8, 24), trim); ring.position.set(x, 0.03, D / 2 + 0.005); g.add(ring);
+    const hole = new THREE.Mesh(new THREE.CircleGeometry(0.0062, 20), black); hole.position.set(x, 0.03, D / 2 + 0.0046); g.add(hole);
+  }
+  // top cartridge bay + smoked dust flap, propped slightly open
+  const bay = new THREE.Mesh(new RoundedBoxGeometry(0.16, 0.006, 0.075, 2, 0.002), black); bay.position.set(-0.015, 0.072, -0.03); bay.rotation.x = 0.19; g.add(bay);
+  const flap = new THREE.Mesh(new RoundedBoxGeometry(0.15, 0.004, 0.068, 2, 0.0015), smoke); flap.position.set(-0.015, 0.079, -0.026); flap.rotation.x = 0.19 - 0.12; flap.userData.bake = 'skip'; g.add(flap);
+  // vent ribs at the back
+  for (let i = 0; i < 9; i++) {
+    const v = new THREE.Mesh(new THREE.BoxGeometry(0.0025, 0.0014, 0.04), black); v.position.set(0.075 + i * 0.008, 0.081 - 0.004, -0.075); v.rotation.x = 0.19; g.add(v);
+  }
+  // printed labels on the strip
+  const lab = canvasTex(512, 32, (c, w, h) => {
+    c.clearRect(0, 0, w, h); c.fillStyle = '#1b1b1d'; c.font = '600 17px Helvetica, Arial, sans-serif';
+    c.fillText('ORBIT·16', 150, 22); c.font = '500 12px Helvetica, Arial, sans-serif'; c.fillText('POWER', 382, 22); c.fillText('RESET', 440, 22);
+  });
+  const label = new THREE.Mesh(new THREE.PlaneGeometry(W - 0.016, 0.018 * (W - 0.016) / 0.29 / (512 / 32) * 16), new THREE.MeshStandardMaterial({ map: lab, transparent: true, roughness: 0.5 }));
+  label.scale.y = 0.62; label.position.set(0, 0.0215, D / 2 + 0.0043); label.userData.bake = 'skip'; g.add(label);
+  // feet
+  for (const x of [-0.12, 0.12]) for (const z of [-0.08, 0.08]) { const f = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.004, 12), black); f.position.set(x, -0.001, z); g.add(f); }
+  const led = new THREE.Mesh(new THREE.SphereGeometry(0.0022, 10, 8), new THREE.MeshStandardMaterial({ color: 0x220000, emissive: 0xff1a08, emissiveIntensity: 14 }));
+  led.position.set(0.135, 0.03, D / 2 + 0.005); led.userData.bake = 'skip'; g.add(led); g.userData.led = led;
+  g.userData.port = new THREE.Vector3(-0.1, 0.03, D / 2 + 0.01);
+  return shadowAll(g);
+}
+
+export function buildController() {
+  // original pad: soft-cornered charcoal body, aluminium face plate, cross pad, two amber face buttons
+  const g = new THREE.Group();
+  const body = new THREE.MeshPhysicalMaterial({ color: 0x2c2c2e, roughness: 0.55, clearcoat: 0.2 });
+  const plate = new THREE.MeshStandardMaterial({ color: 0xa3a3a0, metalness: 1, roughness: 0.42 });
+  const black = new THREE.MeshStandardMaterial({ color: 0x111112, roughness: 0.5 });
+  const amber = new THREE.MeshPhysicalMaterial({ color: 0xd8761c, roughness: 0.3, clearcoat: 0.6 });
+  const sh = new THREE.Shape(); const L = 0.066, R = 0.031;
+  sh.absarc(-L, 0, R, Math.PI / 2, Math.PI * 1.5, false); sh.lineTo(L, -R); sh.absarc(L, 0, R, -Math.PI / 2, Math.PI / 2, false); sh.lineTo(-L, R);
+  const bg = new THREE.ExtrudeGeometry(sh, { depth: 0.016, bevelEnabled: true, bevelSize: 0.004, bevelThickness: 0.004, bevelSegments: 4, curveSegments: 24 });
+  bg.rotateX(-Math.PI / 2); metricUV(bg); g.add(new THREE.Mesh(bg, body));
+  const pg = new THREE.ShapeGeometry(sh, 24); pg.rotateX(-Math.PI / 2); pg.scale(0.86, 1, 0.78);
+  const pl = new THREE.Mesh(pg, plate); pl.position.y = 0.0205; g.add(pl);
+  // cross pad
+  for (const [w, d] of [[0.03, 0.01], [0.01, 0.03]]) { const c = new THREE.Mesh(new RoundedBoxGeometry(w, 0.006, d, 2, 0.002), black); c.position.set(-0.058, 0.024, 0); g.add(c); }
+  // face buttons on a diagonal
+  for (const [x, z] of [[0.05, 0.008], [0.074, -0.008]]) {
+    const b = new THREE.Mesh(new THREE.CylinderGeometry(0.0075, 0.0078, 0.006, 24), amber); b.position.set(x, 0.0235, z); g.add(b);
+  }
+  for (const x of [-0.008, 0.012]) { const p = new THREE.Mesh(new RoundedBoxGeometry(0.014, 0.003, 0.005, 2, 0.0015), black); p.position.set(x, 0.022, 0.006); g.add(p); }
+  g.userData.lead = new THREE.Vector3(0, 0.012, -R - 0.004);
+  return shadowAll(g);
+}
+
+export function buildVCR() {
+  // generic early-90s VHS deck, clock stuck flashing 12:00
+  const g = new THREE.Group();
+  const W = 0.36, H = 0.085, D = 0.27;
+  const body = new THREE.MeshPhysicalMaterial({ color: 0x18181a, roughness: 0.48, clearcoat: 0.25, clearcoatRoughness: 0.4 });
+  const face = new THREE.MeshStandardMaterial({ color: 0x232325, roughness: 0.4 });
+  const silver = new THREE.MeshStandardMaterial({ color: 0xb4b4b0, metalness: 1, roughness: 0.32 });
+  const black = new THREE.MeshStandardMaterial({ color: 0x050505, roughness: 0.9 });
+  const shell = new THREE.Mesh(new RoundedBoxGeometry(W, H, D, 3, 0.004), body); shell.position.y = H / 2 + 0.008; metricUV(shell.geometry, 'x'); g.add(shell);
+  const front = new THREE.Mesh(new RoundedBoxGeometry(W - 0.004, H - 0.006, 0.012, 3, 0.003), face); front.position.set(0, H / 2 + 0.008, D / 2 + 0.003); g.add(front);
+  // tape door (flap) + its recess
+  const door = new THREE.Mesh(new RoundedBoxGeometry(0.19, 0.036, 0.004, 2, 0.0015), body); door.position.set(-0.055, 0.062, D / 2 + 0.0095); g.add(door);
+  const gap = new THREE.Mesh(new THREE.BoxGeometry(0.192, 0.0012, 0.002), black); gap.position.set(-0.055, 0.0435, D / 2 + 0.0095); g.add(gap);
+  // transport buttons
+  for (let i = 0; i < 5; i++) { const b = new THREE.Mesh(new RoundedBoxGeometry(0.022, 0.009, 0.006, 2, 0.002), silver); b.position.set(-0.13 + i * 0.03, 0.026, D / 2 + 0.0105); g.add(b); }
+  // display window
+  const win = new THREE.Mesh(new RoundedBoxGeometry(0.1, 0.028, 0.003, 2, 0.002), black); win.position.set(0.112, 0.06, D / 2 + 0.0095); g.add(win);
+  const vfdTex = canvasTex(256, 72, (c, w, h) => {
+    c.fillStyle = '#000'; c.fillRect(0, 0, w, h);
+    c.fillStyle = '#7dffd8'; c.shadowColor = '#7dffd8'; c.shadowBlur = 6;
+    c.font = 'bold 46px "Courier New", monospace'; c.fillText('12:00', 70, 52);
+    c.font = 'bold 14px Helvetica, Arial, sans-serif'; c.fillText('CH', 14, 30); c.fillText('03', 16, 48);
+  });
+  const vfd = new THREE.Mesh(new THREE.PlaneGeometry(0.09, 0.0253), new THREE.MeshStandardMaterial({ color: 0x000000, emissive: 0xffffff, emissiveMap: vfdTex, emissiveIntensity: 1.6, roughness: 0.2 }));
+  vfd.position.set(0.112, 0.06, D / 2 + 0.0112); vfd.userData.bake = 'skip'; g.add(vfd);
+  // silver model badge + feet
+  const badge = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.006, 0.001), silver); badge.position.set(0.112, 0.026, D / 2 + 0.0098); g.add(badge);
+  for (const x of [-0.15, 0.15]) for (const z of [-0.1, 0.1]) { const f = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.008, 14), black); f.position.set(x, 0.004, z); g.add(f); }
+  g.userData.vfd = vfd;
   return shadowAll(g);
 }
 

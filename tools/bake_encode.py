@@ -13,7 +13,9 @@ d, out = sys.argv[1], sys.argv[2]
 meta = json.load(open(f'{d}/bake.json'))
 scales = {}
 rng = np.random.default_rng(1)
+import os
 for p in ['lamp', 'tvl', 'tvr']:
+    if not os.path.exists(f'{d}/lm_{p}.npy'): continue
     E = np.load(f'{d}/lm_{p}.npy').astype(np.float32)
     covered = E.max(axis=2) > 0
     # pad charts outward so the denoiser and mip/bilinear sampling never see black gaps, then OIDN

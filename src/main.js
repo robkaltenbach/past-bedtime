@@ -3,12 +3,16 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUniformsLib.js';
 import { EffectComposer, RenderPass, EffectPass, BloomEffect, ToneMappingEffect, ToneMappingMode, VignetteEffect, NoiseEffect, BlendFunction, SMAAEffect, DepthOfFieldEffect, ChromaticAberrationEffect } from 'postprocessing';
 import { N8AOPostPass } from 'n8ao';
-import { buildRoom, buildBunkBed, buildConsole, buildPoster, buildGlowStars, cord, ROOM, WIN, HALL_LIGHT } from './scene/room.js';
+import bedroom from './rooms/bedroom.js';
+import living from './rooms/living.js';
 import { shadowAll, setAniso } from './scene/util.js';
 import { makeScreenMesh, ScreenLight, SCREEN, whitePoint } from './crt.js';
 import { initInput, readButtons } from './input.js';
 import { RomStore } from './store.js';
 import { exportScene, applyBake, LM } from './bake.js';
+import { initDev } from './dev.js';
+
+const ROOMS = { bedroom, living };
 
 const BASE = import.meta.env.BASE_URL;
 const params = new URLSearchParams(location.search);
@@ -16,6 +20,9 @@ const TEST = params.has('test');
 const EXPORT = params.has('export');
 let baked = null;
 const VIEW = params.has('view') ? params.get('view').split(',').map(Number) : null;
+let ROOM_ID = params.get('room') || (() => { try { return localStorage.getItem('pb-room'); } catch { return null; } })() || 'bedroom';
+if (!ROOMS[ROOM_ID]) ROOM_ID = 'bedroom';
+const room = ROOMS[ROOM_ID];
 
 // ---------------------------------------------------------------- renderer
 const canvas = document.getElementById('c');
@@ -34,19 +41,13 @@ RectAreaLightUniformsLib.init();
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x000000);
-const camera = new THREE.PerspectiveCamera(43, innerWidth / innerHeight, 0.03, 30);
-const EYE = new THREE.Vector3(0.32, 0.64, 0.78);
+const camera = new THREE.PerspectiveCamera(room.camera.fov, innerWidth / innerHeight, 0.03, 30);
+const EYE = new THREE.Vector3(...room.camera.eye);
 camera.position.copy(EYE);
 
 // ---------------------------------------------------------------- room
-scene.add(buildRoom());
-const bunk = buildBunkBed();
-bunk.position.set(-ROOM.W / 2 + 0.54, 0, -ROOM.D / 2 + 1.04);
-scene.add(bunk);
-const stars = buildGlowStars(); scene.add(stars);
-const poster = buildPoster(); poster.position.set(-0.5, 1.5, -ROOM.D / 2 + 0.004); poster.rotation.z = 0.012; scene.add(poster);
-
-const consoleBox = buildConsole(); consoleBox.position.set(-0.4, 0, -0.84); consoleBox.rotation.y = 0.16; consoleBox.scale.setScalar(1.15); scene.add(consoleBox);
+const handles = room.build(scene);
+const consoleBox = handles.consoleBox;
 
 // ---------------------------------------------------------------- models
 const manager = new THREE.LoadingManager();
@@ -55,10 +56,9 @@ const loadModel = (id) => new Promise((res, rej) => gltf.load(`${BASE}assets/mod
 const progressEl = document.getElementById('progress');
 manager.onProgress = (_, done, total) => { if (progressEl) progressEl.style.width = `${Math.round((done / total) * 100)}%`; };
 
-const TV_S = 1.95;
-const STAND_S = [0.6, 0.6, 0.95], STAND_TOP = 0.68 * 0.6;
+const TV_S = room.tv.scale;
 const tvGroup = new THREE.Group();
-tvGroup.position.set(0.02, STAND_TOP, -1.235); tvGroup.scale.setScalar(TV_S); tvGroup.rotation.y = -0.03;
+tvGroup.position.set(...room.tv.pos); tvGroup.scale.setScalar(TV_S); tvGroup.rotation.y = room.tv.rotY;
 scene.add(tvGroup);
 
 // emulator framebuffer texture
@@ -72,25 +72,10 @@ tvGroup.add(screen, glass);
 const screenU = screen.material.uniforms;
 
 async function loadModels() {
-  const [tv, stand, shelves, books, clock, pad, crate, ball, pillows, dart] = await Promise.all(
-    ['television_02', 'modern_wooden_cabinet', 'wooden_display_shelves_01', 'book_encyclopedia_set_01', 'alarm_clock_01', 'gamepad', 'plastic_crate_01', 'baseball_01', 'throw_pillows_01', 'dartboard'].map(loadModel));
-  tvGroup.add(shadowAll(tv));
-  stand.scale.set(...STAND_S); stand.traverse((o) => { if (o.isMesh) { o.material = o.material.clone(); o.material.color.set(0x8c7a68); } }); stand.position.set(0.02, 0, -ROOM.D / 2 + 0.342 * STAND_S[2] + 0.012); scene.add(shadowAll(stand));
-  shelves.scale.setScalar(0.9); shelves.traverse((o) => { if (o.isMesh) { o.material = o.material.clone(); o.material.color.set(0x6a4a34); } }); shelves.rotation.y = Math.PI / 2; shelves.position.set(1.29, 0, -ROOM.D / 2 + 0.186 * 0.9 + 0.01); scene.add(shadowAll(shelves));
-  books.scale.setScalar(0.85); books.position.set(1.0, 0.57, -1.56); scene.add(shadowAll(books));
-  clock.position.set(-0.55, STAND_TOP, -1.3); clock.rotation.y = -Math.PI / 2 + 0.4; scene.add(shadowAll(clock));
-  pad.position.set(0.3, 0.002, -0.78); pad.rotation.y = 2.5; scene.add(shadowAll(pad));
-  crate.position.set(1.15, 0, -0.62); crate.rotation.y = -0.35; scene.add(shadowAll(crate));
-  ball.position.set(1.1, 0.29, -0.6); ball.visible = false; scene.add(shadowAll(ball)); // kept in the graph so the bake still matches
-  pillows.position.set(-1.1, 0.48, 0.05); pillows.rotation.y = 1.3; pillows.scale.setScalar(0.85); scene.add(shadowAll(pillows));
-  dart.position.set(ROOM.W / 2 - 0.002, 1.62, 0.95); dart.rotation.y = -Math.PI / 2; scene.add(shadowAll(dart));
-  // controller cord from the console to the pad, AV lead up behind the stand
-  scene.add(cord([[-0.36, 0.035, -0.71], [-0.3, 0.004, -0.62], [-0.12, 0.004, -0.7], [0.08, 0.004, -0.8], [0.2, 0.006, -0.84]]));
-  scene.add(cord([[-0.44, 0.04, -0.97], [-0.5, 0.004, -1.04], [-0.62, 0.05, -1.68], [-0.3, STAND_TOP + 0.05, -1.68], [0.12, STAND_TOP + 0.12, -1.62]], 0.0024, 0x8a8a80));
+  const models = await Promise.all(room.models.map(loadModel));
+  tvGroup.add(shadowAll(models[0]));
+  room.place(scene, models, handles);
 }
-
-// hallway light (realtime fallback only; with the bake it's in the static lightmap)
-const hall = new THREE.PointLight(0xffc488, 0, 0, 2); hall.position.set(...HALL_LIGHT); scene.add(hall);
 
 // ---------------------------------------------------------------- lights
 // TV world-space emitter frame
@@ -108,34 +93,12 @@ tvArea.position.copy(scrWorld).addScaledVector(scrFwd, 0.004);
 tvArea.lookAt(tvArea.position.clone().add(scrFwd));
 scene.add(tvArea);
 
-const tvSpot = new THREE.SpotLight(0xffffff, 0, 0, 1.22, 1, 2);
-tvSpot.position.copy(scrWorld).addScaledVector(scrFwd, 0.01);
-tvSpot.target.position.copy(scrWorld).addScaledVector(scrFwd, 2);
-tvSpot.map = light.cookie;
-tvSpot.castShadow = true;
-tvSpot.shadow.mapSize.set(2048, 2048);
-tvSpot.shadow.camera.near = 0.04; tvSpot.shadow.camera.far = 7;
-tvSpot.shadow.radius = 9; tvSpot.shadow.blurSamples = 16;
-tvSpot.shadow.bias = -0.0004; tvSpot.shadow.normalBias = 0.015;
-scene.add(tvSpot, tvSpot.target);
-
-// soft bounce: the walls near the TV re-emit its colour
-const bounce = new THREE.HemisphereLight(0xffffff, 0xffffff, 0);
-scene.add(bounce);
-
-// cool street/moon light through the blinds
-const moon = new THREE.SpotLight(0xa9bcff, 0, 0, 0.3, 0.4, 0);
-moon.position.set(ROOM.W / 2 + 4.2, 3.9, (WIN.z0 + WIN.z1) / 2 + 0.7);
-moon.target.position.set(-0.2, 0.2, -0.55);
-moon.castShadow = true; moon.shadow.mapSize.set(2048, 2048);
-moon.shadow.camera.near = 2.5; moon.shadow.camera.far = 9; moon.shadow.radius = 2.5; moon.shadow.blurSamples = 8; moon.shadow.bias = -0.0002;
-scene.add(moon, moon.target);
-moon.shadow.autoUpdate = false; moon.shadow.needsUpdate = true;
-const night = new THREE.AmbientLight(0x8a8478, 0.0);
-scene.add(night);
+// fallback when no bake is available: a dim fill so the room isn't black
+const fallback = new THREE.HemisphereLight(0xffffff, 0x404040, 0);
+scene.add(fallback);
 
 const led = new THREE.PointLight(0xff2010, 0.0009, 0.5, 2);
-led.position.set(consoleBox.position.x + 0.11, 0.055, consoleBox.position.z + 0.12);
+led.position.set(consoleBox.position.x + 0.135, 0.03, consoleBox.position.z + 0.13);
 scene.add(led);
 
 // ---------------------------------------------------------------- post
@@ -254,12 +217,12 @@ const ui = {
 };
 function showError(msg) { ui.err.textContent = msg; ui.err.classList.add('show'); }
 function hideError() { ui.err.classList.remove('show'); }
-function setCartLabel(n) { ui.cart.textContent = n.replace(/\.nes$/i, ''); ui.cart.classList.add('on'); }
+function setCartLabel(n) { ui.cart.textContent = '▶ ' + n.replace(/\.nes$/i, ''); ui.cart.classList.add('on'); }
 
 let started = false;
 async function start() {
   if (started) return; started = true;
-  ui.intro.classList.add('gone');
+  ui.intro.classList.add('gone'); ui.help.classList.remove('gone');
   await initAudio();
   audio.resume();
   const last = await store.loadRom();
@@ -273,9 +236,17 @@ async function start() {
 }
 ui.start.addEventListener('click', start);
 document.getElementById('load').addEventListener('click', (e) => { e.stopPropagation(); ui.file.click(); });
+document.getElementById('load2').addEventListener('click', (e) => { e.stopPropagation(); ui.file.click(); });
+// room picker: rooms are separate scenes (and separate bakes), so switching reloads
+const goRoom = (id) => { try { localStorage.setItem('pb-room', id); } catch {} const u = new URL(location.href); u.searchParams.set('room', id); location.href = u.toString(); };
+for (const b of document.querySelectorAll('#rooms button')) {
+  b.classList.toggle('on', b.dataset.room === ROOM_ID);
+  b.addEventListener('click', () => { if (b.dataset.room !== ROOM_ID) goRoom(b.dataset.room); });
+}
+document.getElementById('swap').addEventListener('click', (e) => { e.stopPropagation(); goRoom(ROOM_ID === 'bedroom' ? 'living' : 'bedroom'); });
 ui.file.addEventListener('change', async () => {
   const f = ui.file.files[0]; if (!f) return;
-  if (!started) await start();
+  if (!started) { started = true; ui.intro.classList.add('gone'); ui.help.classList.remove('gone'); await initAudio(); audio.resume(); }
   insertCartridge(f.name, await f.arrayBuffer());
   ui.file.value = '';
 });
@@ -284,7 +255,7 @@ addEventListener('dragleave', (e) => { if (e.target === document.documentElement
 addEventListener('drop', async (e) => {
   e.preventDefault(); ui.drop.classList.remove('show');
   const f = e.dataTransfer.files[0]; if (!f) return;
-  if (!started) { started = true; ui.intro.classList.add('gone'); await initAudio(); audio.resume(); }
+  if (!started) { started = true; ui.intro.classList.add('gone'); ui.help.classList.remove('gone'); await initAudio(); audio.resume(); }
   insertCartridge(f.name, await f.arrayBuffer());
 });
 
@@ -311,7 +282,7 @@ addEventListener('pointermove', (e) => {
   look.ty = f((e.clientY / innerHeight) * 2 - 1);
 });
 document.addEventListener('mouseleave', () => { look.tx = 0; look.ty = 0; });
-const baseTarget = new THREE.Vector3(0.0, 0.6, -1.3);
+const baseTarget = new THREE.Vector3(...room.camera.target);
 const baseDir = baseTarget.clone().sub(EYE).normalize();
 const baseYaw = Math.atan2(baseDir.x, -baseDir.z), basePitch = Math.asin(baseDir.y);
 if (params.has('cam')) { const [yx, yy] = params.get('cam').split(',').map(Number); look.tx = look.x = yx; look.ty = look.y = yy; }
@@ -328,7 +299,18 @@ rt.divideScalar(0.2126 * rt.x + 0.7152 * rt.y + 0.0722 * rt.z);
 const ROOM_TINT = new THREE.Color(rt.x, rt.y, rt.z);
 const ENV_I = params.has('env') ? +params.get('env') : 0.2;
 const tmpL = new THREE.Color(), tmpR = new THREE.Color();
-const LAMP_GAIN = params.has('hall') ? +params.get('hall') : 0, TV_GAIN = params.has('tvg') ? +params.get('tvg') : 4.0;
+const LAMP_GAIN = params.has('amb') ? +params.get('amb') : room.staticGain, TV_GAIN = params.has('tvg') ? +params.get('tvg') : 4.0;
+const DEV = {
+  tvLeft: true, tvRight: true, ambient: true, spec: true,
+  tvGain: TV_GAIN, ambientGain: LAMP_GAIN, wb: WB_K, tubeK: SCREEN_K,
+  freeze: false, view: 'final',
+};
+function setWhite() {
+  screenU.uWhite.value.copy(whitePoint(DEV.tubeK));
+  const r = whitePoint(DEV.tubeK).divide(whitePoint(DEV.wb));
+  r.divideScalar(0.2126 * r.x + 0.7152 * r.y + 0.0722 * r.z);
+  ROOM_TINT.setRGB(r.x, r.y, r.z);
+}
 function applyLights(lum, pw) {
   const L = lum;
   if (baked) {
@@ -336,25 +318,21 @@ function applyLights(lum, pw) {
     // Cycles' diffuse light pass is outgoing radiance for albedo 1; three wants irradiance (x PI).
     // The baked screen emitted radiance 1; ours shows the picture at uBright.
     const k = Math.PI * screenU.uBright.value;
-    LM.uTvL.value.copy(tmpL).multiply(ROOM_TINT).multiplyScalar(baked.scales.tvl * k * TV_GAIN);
-    LM.uTvR.value.copy(tmpR).multiply(ROOM_TINT).multiplyScalar(baked.scales.tvr * k * TV_GAIN);
-    LM.uLamp.value.setScalar(baked.scales.lamp * Math.PI * LAMP_GAIN);
-    tvArea.color.copy(light.avg).multiply(ROOM_TINT); tvArea.intensity = 1.5 * L * TV_GAIN;
-    tvSpot.intensity = 0; bounce.intensity = 0; moon.intensity = 0; night.intensity = 0;
-    hall.intensity = 0;
-    scene.environmentIntensity = ENV_I;
+    LM.uTvL.value.copy(tmpL).multiply(ROOM_TINT).multiplyScalar(baked.scales.tvl * k * DEV.tvGain * (DEV.tvLeft ? 1 : 0));
+    LM.uTvR.value.copy(tmpR).multiply(ROOM_TINT).multiplyScalar(baked.scales.tvr * k * DEV.tvGain * (DEV.tvRight ? 1 : 0));
+    LM.uLamp.value.setScalar((baked.scales.lamp || 0) * Math.PI * DEV.ambientGain * (DEV.ambient ? 1 : 0));
+    tvArea.color.copy(light.avg).multiply(ROOM_TINT); tvArea.intensity = DEV.spec ? 1.5 * L * DEV.tvGain : 0;
+    fallback.intensity = 0;
+    scene.environmentIntensity = DEV.spec ? ENV_I : 0;
     return;
   }
   tvArea.color.copy(light.avg);
-  tvArea.intensity = 120 * L;
-  tvSpot.intensity = 48 * (light.peak || L);
-  bounce.color.copy(light.avg); bounce.groundColor.copy(light.avg).multiplyScalar(0.6);
-  bounce.intensity = 0.55 * L;
+  tvArea.intensity = 60 * L;
+  fallback.color.copy(light.avg); fallback.intensity = params.has('flat') ? 2.5 : 0.4 * L + 0.02;
   scene.environmentIntensity = ENV_I;
-  moon.intensity = 0.8; night.intensity = 0.015;
 }
 
-let last = performance.now(), t = 0, frameTimes = [], dprCooldown = 0;
+let last = performance.now(), t = 0, frameTimes = [], dprCooldown = 0, dev = null;
 function resize() {
   renderer.setPixelRatio(dpr);
   renderer.setSize(innerWidth, innerHeight);
@@ -370,7 +348,7 @@ function tick(now) {
   const dt = Math.min(0.1, (now - last) / 1000); last = now; t += dt;
 
   // emulator pacing (NTSC 60.0988 fps)
-  if (romLoaded && signal > 0.02) {
+  if (romLoaded && signal > 0.02 && !DEV.freeze) {
     emuAcc += dt * 60.0988;
     const n = Math.floor(emuAcc);
     if (n > 0 && !inFlight) { emuAcc -= n; if (emuAcc > 3) emuAcc = 0; inFlight = true; worker.postMessage({ type: 'run', frames: n, buttons: readButtons() }); }
@@ -390,17 +368,20 @@ function tick(now) {
   applyLights(L, power);
   if (hiss) hiss.gain.value = (1 - signal) * 0.035 * (started ? 1 : 0);
   led.intensity = 0.0009 * (romLoaded ? 1 : 0.4);
+  if (handles.vcr) handles.vcr.userData.vfd.material.emissiveIntensity = (t % 1 < 0.5) ? 1.6 : 0.04; // 12:00, forever
 
+  if (!(dev && dev.active)) {
   // camera
-  look.x += (look.tx - look.x) * Math.min(1, dt * 1.6);
-  look.y += (look.ty - look.y) * Math.min(1, dt * 1.6);
-  const yaw = baseYaw + look.x * 0.42 + Math.sin(t * 0.21) * 0.006;
-  const pitch = basePitch - look.y * 0.2 + Math.sin(t * 0.33) * 0.004;
-  camera.position.set(EYE.x + Math.sin(t * 0.27) * 0.004, EYE.y + Math.sin(t * 0.52) * 0.003, EYE.z);
-  camera.lookAt(camera.position.x + Math.sin(yaw) * Math.cos(pitch), camera.position.y + Math.sin(pitch), camera.position.z - Math.cos(yaw) * Math.cos(pitch));
-  if (panner) panner.pan.value = Math.max(-0.6, Math.min(0.6, Math.sin(-(yaw - baseYaw) + 0.05) * 0.9));
-
+    look.x += (look.tx - look.x) * Math.min(1, dt * 1.6);
+    look.y += (look.ty - look.y) * Math.min(1, dt * 1.6);
+    const yaw = baseYaw + look.x * 0.42 + Math.sin(t * 0.21) * 0.006;
+    const pitch = basePitch - look.y * 0.2 + Math.sin(t * 0.33) * 0.004;
+    camera.position.set(EYE.x + Math.sin(t * 0.27) * 0.004, EYE.y + Math.sin(t * 0.52) * 0.003, EYE.z);
+    camera.lookAt(camera.position.x + Math.sin(yaw) * Math.cos(pitch), camera.position.y + Math.sin(pitch), camera.position.z - Math.cos(yaw) * Math.cos(pitch));
+    if (panner) panner.pan.value = Math.max(-0.6, Math.min(0.6, Math.sin(-(yaw - baseYaw) + 0.05) * 0.9));
+  }
   if (VIEW) { camera.position.set(VIEW[0], VIEW[1], VIEW[2]); camera.lookAt(VIEW[3], VIEW[4], VIEW[5]); }
+  if (dev && dev.active) dev.update(dt);
   composer.render(dt);
 
   // adaptive resolution to hold ~60fps
@@ -420,7 +401,7 @@ function bakeExtras() {
   tvGroup.updateMatrixWorld(true);
   const z = SCREEN.zc + 0.004, { cx, cy, w, h } = SCREEN;
   const q = (x0, x1) => [[x0, cy - h / 2, z], [x1, cy - h / 2, z], [x1, cy + h / 2, z], [x0, cy + h / 2, z]].map((p) => new THREE.Vector3(...p).applyMatrix4(tvGroup.matrixWorld).toArray());
-  return { screenL: q(cx - w / 2, cx), screenR: q(cx, cx + w / 2), lamp: HALL_LIGHT, moon: { pos: moon.position.toArray(), target: moon.target.position.toArray() } };
+  return { room: room.id, screenL: q(cx - w / 2, cx), screenR: q(cx, cx + w / 2), lamp: null, sky: room.staticGain > 0 ? 2.5 : 0, moon: null };
 }
 function b64(u8) { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); }
 
@@ -434,7 +415,7 @@ loadModels().then(async () => {
   }
   if (!params.has('nobake')) {
     try {
-      baked = await applyBake(scene, BASE);
+      baked = await applyBake(scene, `${BASE}bake/${room.id}/`);
       renderer.shadowMap.enabled = false;
       // physically consistent exposure: the room is lit only by the baked screen + hall, so expose for the room
       // and run the tube at a real CRT's brightness relative to it
@@ -451,6 +432,8 @@ loadModels().then(async () => {
     } catch (e) { console.warn('bake not applied:', e.message); baked = null; }
   }
   captureEnvironment();
+  setWhite();
+  dev = initDev({ THREE, scene, camera, renderer, composer, canvas, room, DEV, LM, effects: { bloom, vignette, grain }, setWhite, isBaked: () => !!baked, light, tmpL, tmpR, screenU, eye: EYE });
   document.getElementById('loading').classList.add('gone');
   ui.start.disabled = false;
   if (TEST) {
@@ -458,4 +441,5 @@ loadModels().then(async () => {
   }
   requestAnimationFrame((n) => { last = n; tick(n); });
   document.title = 'Past Bedtime';
+  window.__ready = true;
 }).catch((e) => { console.error(e); showError('Failed to load the room: ' + e.message); });

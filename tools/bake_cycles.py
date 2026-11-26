@@ -91,17 +91,14 @@ emitters['tvl'] = screen_quad('tvl', info['screenL'])
 emitters['tvr'] = screen_quad('tvr', info['screenR'])
 
 bulb = bpy.data.lights.new('bulb', 'POINT'); bulb.energy = 75; bulb.shadow_soft_size = 0.12; bulb.color = (1.0, 0.74, 0.46)
-bo = bpy.data.objects.new('bulb', bulb); bo.location = info['lamp']; sc.collection.objects.link(bo)
+bo = bpy.data.objects.new('bulb', bulb); bo.location = info.get('lamp') or (0, -50, 0); sc.collection.objects.link(bo)
 moon = bpy.data.lights.new('moon', 'SPOT'); moon.energy = 220; moon.shadow_soft_size = 0.08; moon.spot_size = 0.7; moon.spot_blend = 0.5; moon.color = (0.62, 0.7, 1.0)
-mo = bpy.data.objects.new('moon', moon); mo.location = info['moon']['pos']; sc.collection.objects.link(mo)
-import mathutils
-dvec = mathutils.Vector(info['moon']['target']) - mathutils.Vector(info['moon']['pos'])
-mo.rotation_euler = dvec.to_track_quat('-Z', 'Y').to_euler()
+mo = bpy.data.objects.new('moon', moon); sc.collection.objects.link(mo)
 
 def setup(p):
-    bulb.energy = 75 if p == 'lamp' else 0
-    moon.energy = 0  # Rob: light is the TV plus the hall, nothing else
-    emitters['sky'].inputs['Strength'].default_value = 0.0
+    bulb.energy = 75 if (p == 'lamp' and info.get('lamp')) else 0
+    moon.energy = 0
+    if 'sky' in emitters: emitters['sky'].inputs['Strength'].default_value = float(info.get('sky') or 0) if p == 'lamp' else 0.0
     emitters['tvl'].inputs[1].default_value = 1.0 if p == 'tvl' else 0.0
     emitters['tvr'].inputs[1].default_value = 1.0 if p == 'tvr' else 0.0
 

@@ -71,6 +71,7 @@ export const LM = {
   uTvL: { value: new THREE.Color(0, 0, 0) },
   uTvR: { value: new THREE.Color(0, 0, 0) },
   lmTvL: { value: null }, lmTvR: { value: null },
+  uDebug: { value: 0 }, // 0 final, 1 lighting only (white albedo)
 };
 
 const mapsChunk = ShaderChunk.lights_fragment_maps
@@ -90,7 +91,8 @@ function patchMaterial(mat, lampTex) {
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <lights_fragment_maps>', mapsChunk)
       .replace('#include <lights_fragment_end>', '#include <lights_fragment_end>\n\treflectedLight.directDiffuse = vec3( 0.0 );')
-      .replace('void main() {', 'uniform sampler2D lmTvL, lmTvR; uniform vec3 uLamp, uTvL, uTvR;\nvoid main() {');
+      .replace('#include <color_fragment>', '#include <color_fragment>\n\tif ( uDebug == 1 ) diffuseColor.rgb = vec3( 0.72 );')
+      .replace('void main() {', 'uniform sampler2D lmTvL, lmTvR; uniform vec3 uLamp, uTvL, uTvR; uniform int uDebug;\nvoid main() {');
   };
   mat.customProgramCacheKey = () => 'lm';
   mat.needsUpdate = true;
@@ -98,14 +100,15 @@ function patchMaterial(mat, lampTex) {
 
 export async function applyBake(scene, base) {
   const [meta, buf] = await Promise.all([
-    fetch(base + 'bake/bake.json').then((r) => { if (!r.ok) throw new Error('no bake'); return r.json(); }),
-    fetch(base + 'bake/uv.bin').then((r) => r.arrayBuffer()),
+    fetch(base + 'bake.json').then((r) => { if (!r.ok) throw new Error('no bake'); return r.json(); }),
+    fetch(base + 'uv.bin').then((r) => r.arrayBuffer()),
   ]);
   const list = staticMeshes(scene).filter((o) => bakeMode(o) === 'lm');
   if (list.length !== meta.meshes.length) throw new Error(`bake is stale: ${list.length} meshes vs ${meta.meshes.length} baked`);
   const loader = new THREE.TextureLoader();
-  const load = (f) => new Promise((res) => loader.load(base + 'bake/' + f, (t) => { t.channel = 1; t.flipY = false; t.colorSpace = THREE.NoColorSpace; t.generateMipmaps = true; t.minFilter = THREE.LinearMipmapLinearFilter; res(t); }));
-  const [tLamp, tL, tR] = await Promise.all([load('lm_lamp.png'), load('lm_tvl.png'), load('lm_tvr.png')]);
+  const load = (f) => new Promise((res) => loader.load(base + f, (t) => { t.channel = 1; t.flipY = false; t.colorSpace = THREE.NoColorSpace; t.generateMipmaps = true; t.minFilter = THREE.LinearMipmapLinearFilter; res(t); }));
+  const black = () => { const t = new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1); t.channel = 1; t.needsUpdate = true; return t; };
+  const [tLamp, tL, tR] = await Promise.all([meta.scales.lamp ? load('lm_lamp.png') : black(), load('lm_tvl.png'), load('lm_tvr.png')]);
   LM.lmTvL.value = tL; LM.lmTvR.value = tR;
   for (let k = 0; k < list.length; k++) {
     const o = list[k], m = meta.meshes[k];
