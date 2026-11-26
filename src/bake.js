@@ -106,7 +106,7 @@ export async function applyBake(scene, base) {
   const list = staticMeshes(scene).filter((o) => bakeMode(o) === 'lm');
   if (list.length !== meta.meshes.length) throw new Error(`bake is stale: ${list.length} meshes vs ${meta.meshes.length} baked`);
   const loader = new THREE.TextureLoader();
-  const load = (f) => new Promise((res) => loader.load(base + f, (t) => { t.channel = 1; t.flipY = false; t.colorSpace = THREE.NoColorSpace; t.generateMipmaps = true; t.minFilter = THREE.LinearMipmapLinearFilter; res(t); }));
+  const load = (f) => new Promise((res) => loader.load(base + f, (t) => { t.channel = 1; t.flipY = false; t.colorSpace = THREE.NoColorSpace; t.generateMipmaps = false; t.minFilter = THREE.LinearFilter; res(t); // no mips: mip levels average across unrelated atlas charts and smear blocks onto distant walls }));
   const black = () => { const t = new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1); t.channel = 1; t.needsUpdate = true; return t; };
   const [tLamp, tL, tR] = await Promise.all([meta.scales.lamp ? load('lm_lamp.png') : black(), load('lm_tvl.png'), load('lm_tvr.png')]);
   LM.lmTvL.value = tL; LM.lmTvR.value = tR;
