@@ -37,6 +37,7 @@ renderer.toneMappingExposure = 1.0;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.VSMShadowMap;
 setAniso(renderer.capabilities.getMaxAnisotropy());
+renderer.info.autoReset = false; // count every pass of a frame, not just the last fullscreen quad
 RectAreaLightUniformsLib.init();
 
 const scene = new THREE.Scene();
@@ -383,6 +384,7 @@ function tick(now) {
   }
   if (VIEW) { camera.position.set(VIEW[0], VIEW[1], VIEW[2]); camera.lookAt(VIEW[3], VIEW[4], VIEW[5]); }
   if (dev && dev.active) dev.update(dt);
+  renderer.info.reset();
   composer.render(dt);
 
   // adaptive resolution to hold ~60fps
