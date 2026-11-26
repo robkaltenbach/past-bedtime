@@ -441,7 +441,7 @@ function buildDoorAndHall(trimMat, carpet) {
   g.add(mesh(box(0.06, H, z1 - z0), hallWall, x0 - 0.03, H / 2, (z0 + z1) / 2, 'z'));
   g.add(mesh(box(0.06, H, z1 - z0), hallWall, x1 + 0.03, H / 2, (z0 + z1) / 2, 'z'));
   // ceiling fixture
-  const dome = new THREE.Mesh(new THREE.SphereGeometry(0.16, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffd2a0, emissiveIntensity: 1.5 }));
+  const dome = new THREE.Mesh(new THREE.SphereGeometry(0.16, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0xd8d4cc, roughness: 0.4 }));
   dome.rotation.x = Math.PI; dome.scale.y = 0.45; dome.position.set(HALL_LIGHT[0], H - 0.005, HALL_LIGHT[2]); dome.userData.bake = 'skip'; g.add(dome);
   return g;
 }

@@ -19,6 +19,7 @@ const frag = /* glsl */`
 precision highp float;
 uniform sampler2D tFrame;
 uniform float uTime, uPower, uSignal, uBright, uMask, uRoom;
+uniform vec3 uWhite;
 varying vec2 vUv;
 varying vec3 vN;
 varying vec3 vView;
@@ -102,7 +103,7 @@ void main(){
 
   // glass black level: phosphor-grey with a touch of green
   vec3 black = vec3(0.0011, 0.0013, 0.0013);
-  col = black + col * uBright * step(0.001, uPower);
+  col = black + col * uWhite * uBright * step(0.001, uPower);
   col *= edge;
   // the tube glass: fresnel sheen + a broad soft reflection of the lamp-lit room, strongest off-axis
   vec3 N = normalize(vN), V = normalize(vView);
@@ -129,7 +130,7 @@ export function makeScreenMesh(frameTex) {
     vertexShader: vert, fragmentShader: frag,
     uniforms: {
       tFrame: { value: frameTex }, uTime: { value: 0 }, uPower: { value: 0 }, uSignal: { value: 0 },
-      uBright: { value: (new URLSearchParams(location.search).get('bright') ?? 1.45) * 1 }, uMask: { value: 1 }, uRoom: { value: 1 },
+      uBright: { value: (new URLSearchParams(location.search).get('bright') ?? 1.45) * 1 }, uMask: { value: 1 }, uRoom: { value: 1 }, uWhite: { value: whitePoint(9300) },
     },
     toneMapped: true,
   });
@@ -222,4 +223,20 @@ export class ScreenLight {
     this.lum = (0.2126 * R + 0.7152 * G + 0.0722 * B) * power;
     this.peak = peak * power;
   }
+}
+
+// Linear-sRGB tint that moves a D65 white to a blackbody-ish white at `kelvin`, luminance kept at 1.
+// Consumer CRTs of the era ran 9300K whites (much bluer than daylight's 6500K), which is most of the "blue glow".
+export function whitePoint(kelvin) {
+  const bb = (K) => { // Tanner Helland's blackbody fit, sRGB 0..1
+    const t = K / 100;
+    const r = t <= 66 ? 255 : 329.698727446 * Math.pow(t - 60, -0.1332047592);
+    const g = t <= 66 ? 99.4708025861 * Math.log(t) - 161.1195681661 : 288.1221695283 * Math.pow(t - 60, -0.0755148492);
+    const b = t >= 66 ? 255 : t <= 19 ? 0 : 138.5177312231 * Math.log(t - 10) - 305.0447927307;
+    return [r, g, b].map((v) => Math.pow(Math.min(255, Math.max(0, v)) / 255, 2.2));
+  };
+  const k = bb(kelvin), d = bb(6500);
+  const v = k.map((c, i) => c / d[i]);
+  const lum = 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2];
+  return new THREE.Vector3(v[0] / lum, v[1] / lum, v[2] / lum);
 }

@@ -5,7 +5,7 @@ import { EffectComposer, RenderPass, EffectPass, BloomEffect, ToneMappingEffect,
 import { N8AOPostPass } from 'n8ao';
 import { buildRoom, buildBunkBed, buildConsole, buildPoster, buildGlowStars, cord, ROOM, WIN, HALL_LIGHT } from './scene/room.js';
 import { shadowAll, setAniso } from './scene/util.js';
-import { makeScreenMesh, ScreenLight, SCREEN } from './crt.js';
+import { makeScreenMesh, ScreenLight, SCREEN, whitePoint } from './crt.js';
 import { initInput, readButtons } from './input.js';
 import { RomStore } from './store.js';
 import { exportScene, applyBake, LM } from './bake.js';
@@ -90,7 +90,7 @@ async function loadModels() {
 }
 
 // hallway light (realtime fallback only; with the bake it's in the static lightmap)
-const hall = new THREE.PointLight(0xffc488, 0.6, 0, 2); hall.position.set(...HALL_LIGHT); scene.add(hall);
+const hall = new THREE.PointLight(0xffc488, 0, 0, 2); hall.position.set(...HALL_LIGHT); scene.add(hall);
 
 // ---------------------------------------------------------------- lights
 // TV world-space emitter frame
@@ -317,9 +317,14 @@ const baseYaw = Math.atan2(baseDir.x, -baseDir.z), basePitch = Math.asin(baseDir
 if (params.has('cam')) { const [yx, yy] = params.get('cam').split(',').map(Number); look.tx = look.x = yx; look.ty = look.y = yy; }
 
 // ---------------------------------------------------------------- frame loop
+// CRT white point (9300K) on the picture; the light it throws into the dark room reads cooler still,
+// because dark-adapted eyes shift toward blue (Purkinje effect)
+const SCREEN_K = params.has('k') ? +params.get('k') : 9300, ROOM_K = params.has('roomk') ? +params.get('roomk') : 13000;
+screenU.uWhite.value.copy(whitePoint(SCREEN_K));
+const rt = whitePoint(ROOM_K), ROOM_TINT = new THREE.Color(rt.x, rt.y, rt.z);
 const ENV_I = params.has('env') ? +params.get('env') : 0.2;
 const tmpL = new THREE.Color(), tmpR = new THREE.Color();
-const LAMP_GAIN = params.has('hall') ? +params.get('hall') : 0.15, TV_GAIN = params.has('tvg') ? +params.get('tvg') : 4.0;
+const LAMP_GAIN = params.has('hall') ? +params.get('hall') : 0, TV_GAIN = params.has('tvg') ? +params.get('tvg') : 4.0;
 function applyLights(lum, pw) {
   const L = lum;
   if (baked) {
@@ -327,10 +332,10 @@ function applyLights(lum, pw) {
     // Cycles' diffuse light pass is outgoing radiance for albedo 1; three wants irradiance (x PI).
     // The baked screen emitted radiance 1; ours shows the picture at uBright.
     const k = Math.PI * screenU.uBright.value;
-    LM.uTvL.value.copy(tmpL).multiplyScalar(baked.scales.tvl * k * TV_GAIN);
-    LM.uTvR.value.copy(tmpR).multiplyScalar(baked.scales.tvr * k * TV_GAIN);
+    LM.uTvL.value.copy(tmpL).multiply(ROOM_TINT).multiplyScalar(baked.scales.tvl * k * TV_GAIN);
+    LM.uTvR.value.copy(tmpR).multiply(ROOM_TINT).multiplyScalar(baked.scales.tvr * k * TV_GAIN);
     LM.uLamp.value.setScalar(baked.scales.lamp * Math.PI * LAMP_GAIN);
-    tvArea.color.copy(light.avg); tvArea.intensity = 1.5 * L * TV_GAIN;
+    tvArea.color.copy(light.avg).multiply(ROOM_TINT); tvArea.intensity = 1.5 * L * TV_GAIN;
     tvSpot.intensity = 0; bounce.intensity = 0; moon.intensity = 0; night.intensity = 0;
     hall.intensity = 0;
     scene.environmentIntensity = ENV_I;
